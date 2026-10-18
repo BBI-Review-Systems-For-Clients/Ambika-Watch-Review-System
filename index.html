@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#20355c">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Share your visit to Ambika Watch & Gift, Surat. Write a short review in English, Hindi or Gujarati, then copy it and open Google.">
+  <meta property="og:title" content="Ambika Watch Review System">
+  <meta property="og:description" content="Your visit. Your words. A quick review for Ambika Watch & Gift, Surat.">
+  <meta property="og:type" content="website">
+  <title>Ambika Watch Review System</title>
+  <link rel="icon" type="image/jpeg" href="assets/ambika-logo.jpg">
+  <link rel="apple-touch-icon" href="assets/ambika-logo.jpg">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main class="review-card">
+    <header class="brand-header">
+      <img class="brand-logo" src="assets/ambika-logo.jpg" alt="Ambika Watch & Gift logo" width="76" height="76">
+      <div class="brand-name"><span>AMBIKA</span><small>WATCH <b>&amp;</b> GIFT</small></div>
+      <a class="instagram" href="https://www.instagram.com/ambikawatchandgift/" target="_blank" rel="noopener noreferrer" aria-label="Ambika Watch & Gift on Instagram">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".7" fill="currentColor"/></svg>
+      </a>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div class="eyebrow"><span class="red-line"></span><span data-i18n="eyebrow">YOUR VISIT. YOUR WORDS.</span></div>
+      <h1 id="page-title" data-i18n="heading">How was your visit?</h1>
+      <p data-i18n="intro">A few honest words help someone find their next watch.</p>
+    </section>
+
+    <form id="review-form" novalidate>
+      <div class="language-row">
+        <label for="language" data-i18n="languageLabel">Review language</label>
+        <select id="language" name="language">
+          <option value="en">English</option>
+          <option value="hi">हिन्दी</option>
+          <option value="gu">ગુજરાતી</option>
+        </select>
+      </div>
+
+      <fieldset class="experience-fieldset">
+        <legend data-i18n="experienceLabel">Tap what matches your experience</legend>
+        <div class="experience-chips" id="experience-chips">
+          <button type="button" class="chip" data-experience="selection" aria-pressed="false" data-i18n="selection">Good collection</button>
+          <button type="button" class="chip" data-experience="staff" aria-pressed="false" data-i18n="staff">Helpful staff</button>
+          <button type="button" class="chip" data-experience="value" aria-pressed="false" data-i18n="value">Fair prices</button>
+          <button type="button" class="chip" data-experience="quick" aria-pressed="false" data-i18n="quick">Quick service</button>
+          <button type="button" class="chip" data-experience="mixed" aria-pressed="false" data-i18n="mixed">Mixed experience</button>
+          <button type="button" class="chip" data-experience="improve" aria-pressed="false" data-i18n="improve">Could be better</button>
+        </div>
+      </fieldset>
+
+      <details class="optional-details">
+        <summary><span data-i18n="detailsLabel">Add a watch or brand</span><span class="optional" data-i18n="optional">optional</span></summary>
+        <div class="details-grid">
+          <div><label for="product" data-i18n="productLabel">What did you explore?</label>
+            <select id="product" name="product">
+              <option value="none" data-i18n="noProduct">Choose a category</option>
+              <option value="women" data-i18n="women">Women's watches</option>
+              <option value="men" data-i18n="men">Men's watches</option>
+              <option value="gift" data-i18n="gift">A watch for gifting</option>
+              <option value="clock" data-i18n="clock">Wall clocks</option>
+            </select>
+          </div>
+          <div><label for="brand" data-i18n="brandLabel">Brand you explored</label><select id="brand" name="brand"><option value="" data-i18n="noBrand">Choose a brand</option></select></div>
+        </div>
+        <p class="details-help" data-i18n="brandHelp">Mention only a brand you actually saw. This list doesn't confirm current stock.</p>
+      </details>
+
+      <div class="draft-heading"><label for="review-text" data-i18n="reviewLabel">Your short review</label><button class="text-button" type="button" id="refresh-draft" data-i18n="refresh">Refresh draft</button></div>
+      <div class="review-editor"><textarea id="review-text" name="review" rows="5" maxlength="1000" spellcheck="true" aria-describedby="review-help" placeholder="Tap a detail above, or write a few words about your visit…"></textarea><div class="editor-footer"><span data-i18n="editable">Always yours to edit</span><span id="word-count">0 words</span></div></div>
+      <p class="review-help" id="review-help" data-i18n="reviewHelp">Keep only what reflects your visit. Positive, mixed and critical feedback are all welcome.</p>
+
+      <button type="button" class="polish-button" id="polish-review" hidden data-i18n="polish">Polish my words</button>
+      <button type="submit" id="copy-open" class="primary-button" disabled><span data-i18n="copyOpen">Copy review & open Google</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+      <p class="paste-help" data-i18n="pasteHelp">On Google: choose your stars → paste → post.</p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <a id="direct-google" class="direct-link" href="https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8" target="_blank" rel="noopener noreferrer" data-i18n="direct">Write directly on Google ↗</a>
+    </form>
+
+    <footer><span>AMBIKA WATCH &amp; GIFT</span><span class="footer-dot">·</span><span data-i18n="location">Varachha, Surat</span><small data-i18n="privacy">No sign-up here. Your draft stays in this tab.</small></footer>
+  </main>
+  <p class="thank-you" data-i18n="thanks">Thank you for your time.</p>
+  <noscript><p class="noscript">Please enable JavaScript to compose a review, or <a href="https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8">write directly on Google</a>.</p></noscript>
+</body>
+</html>

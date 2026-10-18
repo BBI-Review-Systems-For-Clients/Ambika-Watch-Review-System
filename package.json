@@ -1,0 +1,12 @@
+{
+  "name": "ambika-watch-review-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A short, customer-led Google review page for Ambika Watch & Gift, Surat.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check app.js && node --check review-core.js"
+  },
+  "devDependencies": { "happy-dom": "21.0.3" }
+}
