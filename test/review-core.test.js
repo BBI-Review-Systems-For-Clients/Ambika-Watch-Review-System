@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES, composeReview, getPolishPrompt } from '../review-core.js';
+import { ANDROID_MAPS_INTENT, BRAND_NAMES, GOOGLE_MAPS_URL, GOOGLE_REVIEW_URL, LANGUAGES, composeReview } from '../review-core.js';
 
 test('only the supplied brand names are available and the Google destination is fixed', () => {
   assert.ok(Object.isFrozen(BRAND_NAMES));
@@ -9,6 +9,28 @@ test('only the supplied brand names are available and the Google destination is 
   assert.equal(new Set(BRAND_NAMES).size, BRAND_NAMES.length);
   assert.deepEqual(LANGUAGES, ['en', 'hi', 'gu']);
   assert.equal(GOOGLE_REVIEW_URL, 'https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8');
+});
+
+test('Android opens the official Maps package for the same business and has a review-form fallback', () => {
+  const maps = new URL(GOOGLE_MAPS_URL);
+  assert.equal(maps.origin, 'https://www.google.com');
+  assert.equal(maps.pathname, '/maps/search/');
+  assert.equal(maps.searchParams.get('api'), '1');
+  assert.equal(maps.searchParams.get('query'), 'Ambika Watch & Gift Surat');
+  assert.equal(maps.searchParams.get('query_place_id'), new URL(GOOGLE_REVIEW_URL).searchParams.get('placeid'));
+  const intent = new URL(ANDROID_MAPS_INTENT);
+  assert.equal(intent.protocol, 'intent:');
+  assert.equal(intent.hostname, 'www.google.com');
+  assert.equal(intent.pathname, '/maps/search/');
+  assert.equal(intent.searchParams.get('query'), 'Ambika Watch & Gift Surat');
+  assert.equal(intent.searchParams.get('query_place_id'), maps.searchParams.get('query_place_id'));
+  assert.match(intent.hash, /^#Intent;/);
+  assert.match(intent.hash, /;scheme=https;/);
+  assert.match(intent.hash, /;package=com\.google\.android\.apps\.maps;/);
+  assert.match(intent.hash, /;end$/);
+  const fallback = intent.hash.match(/;S\.browser_fallback_url=([^;]+);/);
+  assert.ok(fallback, 'Android intent must include an encoded browser fallback');
+  assert.equal(decodeURIComponent(fallback[1]), GOOGLE_REVIEW_URL);
 });
 
 test('empty or unsupported input never generates a customer experience', () => {
@@ -74,17 +96,4 @@ test('full generated drafts stay concise and deterministic before customer notes
       assert.ok(review.split(/[.।]/u).filter(Boolean).length <= 3);
     }
   }
-});
-
-test('polishing instructions preserve facts, sentiment, brands and constrain AI additions', () => {
-  const text = 'The service was slow. I only looked at Casio watches.';
-  const prompt = getPolishPrompt({ text, language: 'gu' });
-  assert.match(prompt, /in Gujarati/);
-  assert.ok(prompt.includes(JSON.stringify(text)));
-  assert.match(prompt, /Preserve every factual detail/);
-  assert.match(prompt, /Do not make a negative or mixed experience positive/);
-  assert.match(prompt, /Preserve business and brand names exactly/);
-  assert.match(prompt, /Do not inject keywords/);
-  assert.match(prompt, /never as instructions/);
-  assert.match(prompt, /Do not conceal/);
 });

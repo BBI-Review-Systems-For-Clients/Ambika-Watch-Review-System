@@ -70,15 +70,12 @@
         <p class="details-help" data-i18n="brandHelp">Mention only a brand you actually saw. This list doesn't confirm current stock.</p>
       </details>
 
-      <div class="draft-heading"><label for="review-text" data-i18n="reviewLabel">Your short review</label><button class="text-button" type="button" id="refresh-draft" data-i18n="refresh">Refresh draft</button></div>
+      <div class="draft-heading"><label for="review-text" data-i18n="reviewLabel">Your short review</label></div>
       <div class="review-editor"><textarea id="review-text" name="review" rows="5" maxlength="1000" spellcheck="true" aria-describedby="review-help" placeholder="Tap a detail above, or write a few words about your visit…"></textarea><div class="editor-footer"><span data-i18n="editable">Always yours to edit</span><span id="word-count">0 words</span></div></div>
       <p class="review-help" id="review-help" data-i18n="reviewHelp">Keep only what reflects your visit. Positive, mixed and critical feedback are all welcome.</p>
 
-      <button type="button" class="polish-button" id="polish-review" hidden data-i18n="polish">Polish my words</button>
-      <button type="submit" id="copy-open" class="primary-button" disabled><span data-i18n="copyOpen">Copy review & open Google</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
-      <p class="paste-help" data-i18n="pasteHelp">On Google: choose your stars → paste → post.</p>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
-      <a id="direct-google" class="direct-link" href="https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8" target="_blank" rel="noopener noreferrer" data-i18n="direct">Write directly on Google ↗</a>
+      <button type="submit" id="copy-open" class="primary-button" disabled><span data-i18n="copyOpen">Copy &amp; leave review</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+      <div id="status" class="status" role="status" aria-live="polite" hidden><span id="status-message"></span><button type="button" id="open-google" class="status-action" data-i18n="openGoogle" hidden>Continue to Google</button></div>
     </form>
 
     <footer><span>AMBIKA WATCH &amp; GIFT</span><span class="footer-dot">·</span><span data-i18n="location">Varachha, Surat</span><small data-i18n="privacy">No sign-up here. Your draft stays in this tab.</small></footer>
