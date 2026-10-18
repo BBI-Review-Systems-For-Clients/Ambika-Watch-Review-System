@@ -6,7 +6,7 @@
   "description": "A short, customer-led Google review page for Ambika Watch & Gift, Surat.",
   "scripts": {
     "test": "node --test",
-    "check": "node --check app.js && node --check review-core.js"
+    "check": "node --check app.js && node --check review-core.js && node --check review-navigation.js"
   },
   "devDependencies": { "happy-dom": "21.0.3" }
 }

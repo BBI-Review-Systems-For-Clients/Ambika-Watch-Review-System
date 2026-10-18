@@ -1,40 +1,39 @@
 # Ambika Watch Review System
 
-A short, mobile-friendly Google review page for **Ambika Watch & Gift, Surat**. Built as a separate static website in the Ambika navy (`#20355c`), red (`#ed1c24`) and white palette.
+A short, mobile-friendly review page for **Ambika Watch & Gift, Surat**, using navy (`#20355c`), red (`#ed1c24`) and white.
+
+Live: https://bbi-review-systems-for-clients.github.io/Ambika-Watch-Review-System/
 
 ## Customer flow
 
 1. Choose English, Hindi or Gujarati.
-2. Tap details that reflect the visit, or write a review directly. A watch category and brand are optional.
-3. Edit the short draft, then select **Copy & leave review**.
-4. On Android, open **Reviews → Write a review** in the business's Google Maps profile. On other devices, the Google review form opens directly. Choose a rating, paste the text and submit.
+2. Tap details that reflect the visit, or write directly. Watch category and brand are optional.
+3. Edit the short review, then tap **Copy & Leave Review**.
 
-Google's review form cannot be reliably prefilled or automatically pasted by an unrelated website. The page copies first. On Android it launches an intent targeting the Google Maps app with the exact Place ID; Chrome uses the Google review form as a browser fallback if the app is unavailable. App opening depends on the browser and device settings. Maps URLs do not provide a documented action to open the native review composer directly. The page does not automate searches or clicks inside Google Maps.
+On Android, the button requests Google Maps at Ambika's exact Place ID. If Maps is unavailable, Chrome's intent fallback opens the supplied HTTPS Google review form. Other devices open that form directly. Google controls the review action, sign-in, pasting and submission. No documented Maps intent guarantees opening the native review composer.
 
-Android first tries a synchronous selected-text copy so app launch can remain within the customer's tap, then falls back to the Clipboard API. If a permission prompt consumes the browser's user activation, a **Continue to Google** recovery button requests another real tap. If the app launch is silently blocked, the same recovery button opens the HTTPS review form. Clipboard failure keeps the review selected for manual copying. Other devices reserve a new tab before the clipboard call and fall back to the current tab if popups are blocked. A Google sign-in may be required by Google.
+The page has one primary button. AI polishing, refresh, the permanent paste instruction and the additional Google link have been removed. If clipboard access is denied, the review stays selected for manual copying and the same button becomes **Leave Review**. If an Android intent is blocked or ignored, the next real tap uses the normal HTTPS review form. No background searches, simulated clicks, timed navigation or automated reviews are used.
 
-## Honest feedback
+Android first attempts synchronous selected-text copying to retain the customer's click activation. If a clipboard prompt consumes that activation, the page waits for another real tap. Choice controls stay disabled while copying, and returning through the browser back-forward cache retains the page handlers.
 
-The fast, multilingual draft composer uses only the customer's selected details. It does not assign a rating, invent a purchase, choose random brands, or hide critical feedback. No reviews are posted automatically. Brand names are limited to the supplied allowlist and do not confirm current stock; no third-party brand logos or generated watch imagery are used.
+## Reviews and privacy
 
-Drafts use the local multilingual composer and remain editable. Manual wording is preserved when choices or the interface language change; clearing the editor allows the next choice to create a new draft. There is no AI polishing, model download, or refresh button.
+Drafts use only the customer's selected experiences. Manual words are preserved when choices or the interface language change; clearing the editor allows the next choice to create a new draft. No rating, purchase, random brand or recommendation is invented. Critical and mixed feedback use the same destination as positive feedback.
 
-No third-party AI endpoint, secret API key, tracking script, login, backend, customer database or browser storage is used. Draft text stays in page memory until the customer chooses to copy it or open Google. The site does not try to evade Google's systems or guarantee publication, ranking or detection outcomes.
+The brand dropdown contains only the supplied brand names. It does not confirm stock. No third-party brand logos, generated watch imagery, AI editing, external AI endpoints, secrets, tracking, customer database or browser storage are used. The page does not attempt to disguise automation or guarantee Google ranking or detection outcomes.
 
-## Configuration and assets
+## Configuration and branding
 
 - Place ID: `ChIJ4dkN_wJP4DsRaUIpMlm4KN8`
-- Review URL: https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8
-- Public profile and authentic logo source: https://www.instagram.com/ambikawatchandgift/
-- `assets/ambika-logo.jpg` is the downloaded original public profile image, also used as the favicon. It is not AI-generated. The low-resolution source is deliberately displayed small.
-- User-supplied Drive folder reviewed for context: https://drive.google.com/drive/folders/1wzUAmL-MEvjuWHFdj743nCG42pFbvrwm
-- Existing review systems were inspected as references only. No existing repository or custom-domain configuration was changed.
+- Review form: https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8
+- Business profile: https://www.instagram.com/ambikawatchandgift/
+- The circular Instagram logo has been removed. The exact wide navy/red logo shown in chat is pending an accessible original file or downloadable URL. The header currently uses business-name text; no substitute logo has been generated or presented as the original.
 
-Business names in reviews are only included where the customer supplies experience details. Private business metrics, marketing notes, sales figures and customer data are not published in this repository.
+References: [Google Maps URLs](https://developers.google.com/maps/documentation/urls/guide), [Chrome Android intents](https://developer.chrome.com/docs/android/intents).
 
 ## Development
 
-Requires Node 20.19+ for development dependencies. The live page itself needs no build or npm packages.
+Requires Node 20.19+ for development dependencies. Production needs no build or npm packages.
 
 ```sh
 npm ci
@@ -43,12 +42,10 @@ npm test
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080` locally. ES modules require HTTP, not opening `index.html` as a `file://` URL. Clipboard access requires HTTPS or localhost. Automated DOM tests cover drafts, edits, translation labels, clipboard behavior, popup and navigation recovery, Android intent selection, user-activation recovery, and returning through the browser's back-forward cache. These tests stub navigation and do not establish actual Android app opening, installed-app behavior, or real Google form behavior. No Google reviews are submitted during tests.
-
-For device validation, use an Android phone with and without Google Maps installed: verify copy and profile opening, the fallback review page, clipboard denial/manual recovery, and returning to the page with Back. References: [Maps URLs](https://developers.google.com/maps/documentation/urls/guide) and [Chrome Android intents](https://developer.chrome.com/docs/android/intents).
+Use HTTP locally; ES modules do not work by opening `index.html` as a `file://` URL. Clipboard access requires HTTPS or localhost. Automated tests use DOM and navigation stubs; they do not establish actual Android app behavior or native review-form opening. No Google reviews are submitted during tests.
 
 ## Deployment
 
-GitHub Pages serves the `main` branch at `/` with HTTPS and `.nojekyll`. No CNAME from another client's review system is used. Pushes to `main` are automatically published by GitHub Pages. The site is entirely self-contained; production does not depend on a package CDN.
+The repository is `BBI-Review-Systems-For-Clients/Ambika-Watch-Review-System`, transferred from the original personal-account location. GitHub Pages publishes `main` at `/(root)` with HTTPS and `.nojekyll`. No other repository or custom domain is changed.
 
-To publish an update, run `bash deploy-github.sh`. It checks the account and exact repository, runs the checks, pushes without force, then enables Pages when needed. It refuses an unexpected remote or branch and never changes another repository.
+From a clone of this repository, `bash deploy-github.sh` verifies the GitHub account, exact repository ID, branch and remote, runs checks, then pushes without force. GitHub automatically publishes the new commit.

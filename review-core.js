@@ -11,13 +11,6 @@ export const BRAND_NAMES = Object.freeze([
 export const GOOGLE_REVIEW_URL =
   'https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8';
 
-// Maps URLs identify the exact listing; Google keeps review entry in its own UI.
-export const GOOGLE_MAPS_URL =
-  'https://www.google.com/maps/search/?api=1&query=Ambika%20Watch%20%26%20Gift%20Surat&query_place_id=ChIJ4dkN_wJP4DsRaUIpMlm4KN8';
-export const ANDROID_MAPS_INTENT = GOOGLE_MAPS_URL.replace('https://', 'intent://') +
-  '#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=' +
-  encodeURIComponent(GOOGLE_REVIEW_URL) + ';end';
-
 export const LANGUAGES = Object.freeze(['en', 'hi', 'gu']);
 
 const positiveIds = ['selection', 'staff', 'value', 'quick'];

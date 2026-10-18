@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Window } from 'happy-dom';
 import { initReviewApp } from '../app.js';
+import { ANDROID_MAPS_INTENT } from '../review-navigation.js';
 import { COPY } from '../i18n.js';
-import { ANDROID_MAPS_INTENT, GOOGLE_REVIEW_URL } from '../review-core.js';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const googleURL = 'https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8';
 const allowedBrands = [
   'Casio', 'Timex', 'Tommy Hilfiger', 'Police', 'Kenneth Cole', 'Obaku',
   'DKNY', 'Guess', 'Anne Klein', 'Lee Copper', 'Daniel Wellington',
@@ -16,7 +17,7 @@ const allowedBrands = [
   'Logues', 'Onex', 'Crony', 'Canon', 'Time Square',
 ];
 
-function fixture(t, configure = () => {}) {
+function fixture(t, { configure = () => {}, navigate } = {}) {
   const win = new Window({
     url: 'https://example.test/ambika-watch-review-system/',
     settings: {
@@ -27,14 +28,19 @@ function fixture(t, configure = () => {}) {
     },
   });
   const doc = win.document;
-  const navigations = [];
-  win.location.assign = url => navigations.push(url);
+  let networkRequests = 0;
+  let popupRequests = 0;
+  win.fetch = () => { networkRequests++; throw new Error('Unexpected network request'); };
+  win.open = () => { popupRequests++; throw new Error('Unexpected popup'); };
   doc.write(html);
   configure(win, doc);
-  const app = initReviewApp(doc, win);
+  const destinations = [];
+  const app = initReviewApp(doc, win, { navigate: navigate || (url => destinations.push(url)) });
   t.after(async () => {
     app.dispose();
     await win.happyDOM.close();
+    assert.equal(networkRequests, 0, 'the page does not send customer text to a network endpoint');
+    assert.equal(popupRequests, 0, 'navigation does not require a popup');
   });
   const $ = id => doc.getElementById(id);
   const choose = (id, value) => {
@@ -47,51 +53,29 @@ function fixture(t, configure = () => {}) {
   };
   const tap = experience => doc.querySelector(`[data-experience="${experience}"]`).click();
   const submit = () => $('review-form').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
-  return { win, doc, $, choose, type, tap, submit, navigations };
+  return { win, doc, $, choose, type, tap, submit, destinations };
 }
 
 function setClipboard(win, writeText) {
-  Object.defineProperty(win.navigator, 'clipboard', {
-    configurable: true,
-    value: { writeText },
-  });
-}
-
-function setNavigator(win, property, value) {
-  Object.defineProperty(win.navigator, property, { configurable: true, value });
-}
-
-function setAndroid(win) {
-  setNavigator(win, 'userAgent', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36');
-}
-
-function popupStub() {
-  const destinations = [];
-  const popup = {
-    closed: false,
-    opener: 'parent',
-    location: { replace: url => destinations.push(url) },
-    close() { this.closed = true; },
-  };
-  return { popup, destinations };
+  Object.defineProperty(win.navigator, 'clipboard', { configurable: true, value: { writeText } });
 }
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('initial page has one primary action and requires customer input', t => {
+test('the initial page has one primary action, no preset rating, and no removed secondary controls', t => {
   const { doc, $ } = fixture(t);
   assert.equal($('review-text').value, '');
   assert.equal($('copy-open').disabled, true);
-  assert.equal($('copy-open').querySelector('span').textContent, COPY.en.copyOpen);
   assert.equal($('word-count').textContent, '0 words');
   assert.equal(doc.querySelectorAll('[data-experience][aria-pressed="true"]').length, 0);
   assert.equal(doc.querySelectorAll('[name="rating"], [role="radio"], input[type="radio"]').length, 0);
-  for (const id of ['polish-review', 'refresh-draft', 'direct-google']) assert.equal($(id), null);
-  assert.equal($('open-google').hidden, true);
-  assert.equal($('status-message').textContent, '');
+  assert.equal(doc.querySelectorAll('.primary-button').length, 1);
+  assert.equal(doc.querySelectorAll('button[type="submit"]').length, 1);
+  assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, .paste-help'), null);
+  assert.equal($('copy-open').textContent.trim(), COPY.en.copyOpen);
 });
 
-test('customer choices compose a short editable draft using exactly the supplied brand list', t => {
+test('customer choices create a short editable draft with exactly the supplied brand names', t => {
   const { doc, $, choose, tap } = fixture(t);
   assert.deepEqual([...$('brand').options].map(option => option.value), ['', ...allowedBrands]);
   tap('selection');
@@ -109,12 +93,10 @@ test('customer choices compose a short editable draft using exactly the supplied
   assert.doesNotMatch($('review-text').value, /helpful staff/);
 });
 
-test('critical feedback uses the same copy action and Google destination', async t => {
+test('critical feedback can copy and leave through the same Google review destination', async t => {
   const copied = [];
-  const { popup, destinations } = popupStub();
-  const { $, tap, submit } = fixture(t, win => {
-    setClipboard(win, async text => copied.push(text));
-    win.open = () => popup;
+  const { $, tap, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, async text => copied.push(text)),
   });
   tap('improve');
   const review = $('review-text').value;
@@ -123,11 +105,11 @@ test('critical feedback uses the same copy action and Google destination', async
   submit();
   await settle();
   assert.deepEqual(copied, [review]);
-  assert.deepEqual(destinations, [GOOGLE_REVIEW_URL]);
-  assert.equal($('status-message').textContent, COPY.en.copied);
+  assert.deepEqual(destinations, [googleURL]);
+  assert.equal($('status').textContent, COPY.en.copied);
 });
 
-test('manual wording survives choices and language changes; clearing permits a new draft', t => {
+test('manual wording survives changes to chips, watch details, and language', t => {
   const { $, type, tap, choose, doc } = fixture(t);
   const ownWords = 'The strap was uncomfortable.\nI did not buy the watch.';
   type(ownWords);
@@ -135,63 +117,61 @@ test('manual wording survives choices and language changes; clearing permits a n
   choose('product', 'men');
   choose('brand', 'Casio');
   assert.equal($('review-text').value, ownWords);
-  assert.equal($('status-message').textContent, COPY.en.kept);
+  assert.equal($('status').textContent, COPY.en.kept);
   choose('language', 'gu');
   assert.equal(doc.documentElement.lang, 'gu');
   assert.equal($('page-title').textContent, COPY.gu.heading);
   assert.equal($('review-text').value, ownWords);
-  assert.equal($('status-message').textContent, COPY.gu.languageKept);
-  type('');
-  assert.equal($('copy-open').disabled, true);
-  choose('product', 'women');
-  assert.match($('review-text').value, /Casio/);
-  assert.match($('review-text').value, /મહિલાઓની ઘડિયાળો/);
+  assert.equal($('status').textContent, COPY.gu.languageKept);
+  assert.equal($('copy-open').disabled, false);
 });
 
-test('desktop reserves a popup synchronously, copies once, and then opens the fixed review form', async t => {
+test('copy finishes before navigation; repeated clicks cannot copy or navigate twice while pending', async t => {
   const events = [];
-  const { popup, destinations } = popupStub();
   let finishCopy;
-  const { $, type, submit, navigations } = fixture(t, win => {
-    win.open = (...args) => { events.push(['open', ...args]); return popup; };
-    setClipboard(win, text => {
+  const { $, type, submit, doc } = fixture(t, {
+    configure: win => setClipboard(win, text => {
       events.push(['copy', text]);
       return new Promise(resolve => { finishCopy = resolve; });
-    });
+    }),
+    navigate: url => events.push(['navigate', url]),
   });
   type('  Helpful staff and a good watch collection.  ');
   submit();
   submit();
-  assert.deepEqual(events, [
-    ['open', 'about:blank', '_blank'],
-    ['copy', 'Helpful staff and a good watch collection.'],
-  ]);
-  assert.equal(popup.opener, null);
+  assert.deepEqual(events, [['copy', 'Helpful staff and a good watch collection.']]);
   assert.equal($('copy-open').disabled, true);
-  assert.deepEqual(destinations, []);
-  assert.deepEqual(navigations, []);
+  assert.equal($('copy-open').textContent.trim(), COPY.en.busy);
+  assert.equal($('review-text').readOnly, true);
+  for (const control of doc.querySelectorAll('select, [data-experience]')) {
+    assert.equal(control.disabled, true, `${control.id || control.dataset.experience} must stay fixed while copying`);
+  }
   finishCopy();
   await settle();
-  assert.deepEqual(destinations, [GOOGLE_REVIEW_URL]);
-  assert.equal($('status-message').textContent, COPY.en.copied);
+  assert.deepEqual(events, [
+    ['copy', 'Helpful staff and a good watch collection.'],
+    ['navigate', googleURL],
+  ]);
   assert.equal($('copy-open').disabled, false);
-  assert.equal($('open-google').hidden, true);
+  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  assert.equal($('review-text').readOnly, false);
+  for (const control of doc.querySelectorAll('select, [data-experience]')) assert.equal(control.disabled, false);
 });
 
-test('desktop clipboard rejection falls back to selected-text copy and restores selection', async t => {
-  const { popup, destinations } = popupStub();
+test('clipboard permission rejection can use selected-text copy before navigation', async t => {
   let legacyCopies = 0;
-  const { $, type, submit } = fixture(t, (win, doc) => {
-    win.open = () => popup;
-    setClipboard(win, async () => { throw new Error('Permission denied'); });
-    doc.execCommand = command => {
-      legacyCopies++;
-      assert.equal(command, 'copy');
-      assert.equal(doc.activeElement.id, 'review-text');
-      assert.equal($('review-text').selectionStart, 0);
-      assert.equal($('review-text').selectionEnd, $('review-text').value.length);
-      return true;
-    };
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      setClipboard(win, async () => { throw new Error('Permission denied'); });
+      doc.execCommand = command => {
+        legacyCopies++;
+        assert.equal(command, 'copy');
+        assert.equal(doc.activeElement.id, 'review-text');
+        assert.equal($('review-text').selectionStart, 0);
+        assert.equal($('review-text').selectionEnd, $('review-text').value.length);
+        return true;
+      };
+    },
   });
   type('I explored wall clocks.');
   $('review-text').setSelectionRange(2, 7);
@@ -200,214 +180,204 @@ test('desktop clipboard rejection falls back to selected-text copy and restores 
   assert.equal(legacyCopies, 1);
   assert.equal($('review-text').selectionStart, 2);
   assert.equal($('review-text').selectionEnd, 7);
-  assert.deepEqual(destinations, [GOOGLE_REVIEW_URL]);
-  assert.equal($('status-message').textContent, COPY.en.copied);
+  assert.deepEqual(destinations, [googleURL]);
+  assert.equal($('status').textContent, COPY.en.copied);
 });
 
-test('desktop copy failure closes its popup, selects text, and waits for manual recovery', async t => {
-  const { popup, destinations } = popupStub();
-  const { $, type, submit, doc, navigations } = fixture(t, (win, doc) => {
-    win.open = () => popup;
-    setClipboard(win, async () => { throw new Error('Permission denied'); });
-    doc.execCommand = () => false;
+test('failed copy selects the review and reuses the same button to leave without another clipboard request', async t => {
+  let copyRequests = 0;
+  let legacyCopies = 0;
+  const { $, type, submit, doc, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      setClipboard(win, async () => { copyRequests++; throw new Error('Permission denied'); });
+      doc.execCommand = () => { legacyCopies++; return false; };
+    },
   });
   type('The service could improve.');
+  const button = $('copy-open');
   submit();
   await settle();
-  assert.equal(popup.closed, true);
+  assert.equal(copyRequests, 1);
+  assert.equal(legacyCopies, 1);
   assert.deepEqual(destinations, []);
-  assert.deepEqual(navigations, []);
-  assert.equal($('status-message').textContent, COPY.en.copyFailed);
+  assert.equal($('status').textContent, COPY.en.copyFailed);
   assert.equal($('status').dataset.tone, 'error');
   assert.equal(doc.activeElement, $('review-text'));
   assert.equal($('review-text').selectionStart, 0);
   assert.equal($('review-text').selectionEnd, $('review-text').value.length);
-  assert.equal($('open-google').hidden, false);
-  assert.equal($('copy-open').disabled, false);
-  $('open-google').click();
-  assert.deepEqual(navigations, [GOOGLE_REVIEW_URL]);
-});
-
-test('a blocked desktop popup copies first and then opens the review form in the current tab', async t => {
-  const copied = [];
-  const { $, type, submit, navigations } = fixture(t, win => {
-    win.open = () => null;
-    setClipboard(win, async text => copied.push(text));
-  });
-  type('I looked at Casio watches.');
+  assert.equal($('copy-open'), button);
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent.trim(), COPY.en.leaveReview);
   submit();
-  assert.deepEqual(navigations, []);
   await settle();
-  assert.deepEqual(copied, ['I looked at Casio watches.']);
-  assert.deepEqual(navigations, [GOOGLE_REVIEW_URL]);
-  assert.equal($('status-message').textContent, COPY.en.copied);
-  assert.equal($('open-google').hidden, true);
+  assert.equal(copyRequests, 1);
+  assert.equal(legacyCopies, 1);
+  assert.deepEqual(destinations, [googleURL]);
 });
 
-for (const detection of ['userAgent', 'userAgentData']) {
-  test(`Android detection via ${detection} copies synchronously before opening Maps without a popup`, async t => {
-    const events = [];
-    const { $, type, submit, navigations } = fixture(t, (win, doc) => {
-      if (detection === 'userAgent') setAndroid(win);
-      else setNavigator(win, 'userAgentData', { platform: 'Android' });
-      setNavigator(win, 'userActivation', { isActive: false });
-      win.open = () => { events.push('popup'); return null; };
-      setClipboard(win, async () => { events.push('async-copy'); });
+test('a navigation error preserves the review and supports retry without copying again', async t => {
+  let copyRequests = 0;
+  let attempts = 0;
+  const destinations = [];
+  const { $, type, submit } = fixture(t, {
+    configure: win => setClipboard(win, async () => { copyRequests++; }),
+    navigate: url => {
+      attempts++;
+      if (attempts === 1) throw new Error('Browser did not navigate');
+      destinations.push(url);
+    },
+  });
+  type('I only browsed Casio watches.');
+  submit();
+  await settle();
+  assert.equal($('review-text').value, 'I only browsed Casio watches.');
+  assert.equal($('status').textContent, COPY.en.openFailed);
+  assert.equal($('status').dataset.tone, 'error');
+  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  submit();
+  await settle();
+  assert.equal(copyRequests, 1);
+  assert.equal(attempts, 2);
+  assert.deepEqual(destinations, [googleURL]);
+});
+
+test('editing a previously copied review resets the button and copies the new words before leaving', async t => {
+  const copied = [];
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, async text => copied.push(text)),
+  });
+  type('The staff helped.');
+  submit();
+  await settle();
+  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  type('I changed my mind: the service was slow.');
+  assert.equal($('copy-open').textContent.trim(), COPY.en.copyOpen);
+  submit();
+  await settle();
+  assert.deepEqual(copied, ['The staff helped.', 'I changed my mind: the service was slow.']);
+  assert.deepEqual(destinations, [googleURL, googleURL]);
+  type('   ');
+  assert.equal($('copy-open').disabled, true);
+});
+
+test('Android uses the Maps intent only after the customer review has been copied', async t => {
+  const copied = [];
+  const { type, submit, destinations } = fixture(t, {
+    configure: win => {
+      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/143.0 Mobile Safari/537.36' });
+      setClipboard(win, async text => copied.push(text));
+    },
+  });
+  type('A good collection of watches.');
+  submit();
+  assert.deepEqual(destinations, []);
+  await settle();
+  assert.deepEqual(copied, ['A good collection of watches.']);
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
+});
+
+test('Android synchronous copy opens Maps during the original tap without requesting the Clipboard API', t => {
+  let clipboardRequests = 0;
+  const events = [];
+  const { $, type, submit } = fixture(t, {
+    configure: (win, doc) => {
+      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      setClipboard(win, async () => { clipboardRequests++; });
       doc.execCommand = command => {
-        events.push(command);
-        assert.equal(doc.activeElement.id, 'review-text');
+        assert.equal(command, 'copy');
+        const editor = doc.getElementById('review-text');
+        events.push(['copy', editor.value.slice(editor.selectionStart, editor.selectionEnd)]);
         return true;
       };
-    });
-    type('The collection was good.');
-    submit();
-    assert.deepEqual(events, ['copy']);
-    assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
-    await settle();
-    assert.deepEqual(events, ['copy']);
-    assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
-    assert.equal($('open-google').hidden, false);
+    },
+    navigate: url => events.push(['navigate', url]),
   });
-}
-
-test('Android falls back to async clipboard and opens Maps while activation remains available', async t => {
-  const events = [];
-  const { type, submit, navigations } = fixture(t, (win, doc) => {
-    setAndroid(win);
-    setNavigator(win, 'userActivation', { isActive: true });
-    win.open = () => { events.push('popup'); return null; };
-    doc.execCommand = () => { events.push('sync-copy'); return false; };
-    setClipboard(win, async text => { events.push(['async-copy', text]); });
-  });
-  type('I only browsed watches.');
+  type('I explored the watch collection.');
   submit();
-  await settle();
-  assert.deepEqual(events, ['sync-copy', ['async-copy', 'I only browsed watches.']]);
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
+  // No promise or timer needs to settle before the app intent is attempted.
+  assert.deepEqual(events, [
+    ['copy', 'I explored the watch collection.'],
+    ['navigate', ANDROID_MAPS_INTENT],
+  ]);
+  assert.equal(clipboardRequests, 0);
+  assert.equal($('copy-open').disabled, false);
+  assert.equal($('review-text').readOnly, false);
 });
 
-test('Android async copy with lost activation waits for a fresh recovery click before opening Maps', async t => {
-  let finishCopy;
-  let copies = 0;
+test('expired Android activation after async copy waits for a second tap without recopying', async t => {
   const activation = { isActive: true };
-  const { $, type, submit, navigations } = fixture(t, (win, doc) => {
-    setAndroid(win);
-    setNavigator(win, 'userActivation', activation);
-    win.open = () => { throw new Error('Android must not open a popup'); };
-    doc.execCommand = () => false;
-    setClipboard(win, () => {
-      copies++;
-      return new Promise(resolve => { finishCopy = resolve; });
-    });
+  let finishCopy;
+  let clipboardRequests = 0;
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      Object.defineProperty(win.navigator, 'userActivation', { configurable: true, value: activation });
+      doc.execCommand = () => false;
+      setClipboard(win, () => {
+        clipboardRequests++;
+        return new Promise(resolve => { finishCopy = resolve; });
+      });
+    },
   });
-  type('The strap was uncomfortable.');
+  type('The staff helped me browse Casio watches.');
   submit();
-  submit();
-  assert.equal(copies, 1);
-  assert.deepEqual(navigations, []);
   activation.isActive = false;
   finishCopy();
   await settle();
-  assert.deepEqual(navigations, []);
-  assert.equal($('status-message').textContent, COPY.en.popupBlocked);
-  assert.equal($('open-google').hidden, false);
+  assert.equal(clipboardRequests, 1);
+  assert.deepEqual(destinations, []);
+  assert.equal($('status').textContent, COPY.en.openFailed);
+  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  assert.equal($('copy-open').disabled, false);
   activation.isActive = true;
-  $('open-google').click();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
-  assert.equal($('open-google').hidden, false);
-  $('open-google').click();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT, GOOGLE_REVIEW_URL]);
-  assert.equal(copies, 1);
-});
-
-test('an Android intent silently ignored by the browser leaves a direct review fallback', async t => {
-  let copies = 0;
-  const { $, type, submit, navigations } = fixture(t, (win, doc) => {
-    setAndroid(win);
-    doc.execCommand = () => { copies++; return true; };
-  });
-  type('I browsed the watch collection.');
   submit();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
-  await settle();
-  assert.equal($('open-google').hidden, false);
-  $('open-google').click();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT, GOOGLE_REVIEW_URL]);
-  assert.equal(copies, 1);
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
+  assert.equal(clipboardRequests, 1);
 });
 
-test('a rejected Android intent offers a direct browser review retry without copying again', async t => {
-  const attempts = [];
-  let copies = 0;
-  const { $, type, submit } = fixture(t, (win, doc) => {
-    setAndroid(win);
-    doc.execCommand = () => { copies++; return true; };
-    win.location.assign = url => {
-      attempts.push(url);
-      if (attempts.length === 1) throw new Error('Intent navigation rejected');
-    };
+test('an ignored Android app launch lets the same button open the HTTPS review form on the next tap', t => {
+  let clipboardRequests = 0;
+  let synchronousCopies = 0;
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      doc.execCommand = () => { synchronousCopies++; return true; };
+      setClipboard(win, async () => { clipboardRequests++; });
+    },
   });
-  type('The staff answered my questions.');
+  type('I browsed watches for gifting.');
+  const button = $('copy-open');
   submit();
-  await settle();
-  assert.deepEqual(attempts, [ANDROID_MAPS_INTENT]);
-  assert.equal($('status-message').textContent, COPY.en.popupBlocked);
-  assert.equal($('open-google').hidden, false);
-  $('open-google').click();
-  assert.deepEqual(attempts, [ANDROID_MAPS_INTENT, GOOGLE_REVIEW_URL]);
-  assert.equal(copies, 1);
+  // The navigation stub accepts the intent but does not leave this page.
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
+  assert.equal(button.textContent.trim(), COPY.en.leaveReview);
+  submit();
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT, googleURL]);
+  assert.equal($('copy-open'), button);
+  assert.equal(synchronousCopies, 1);
+  assert.equal(clipboardRequests, 0);
+  assert.equal($('review-text').value, 'I browsed watches for gifting.');
 });
 
-test('a page kept in the back-forward cache retains choice, editor, and submit handlers', async t => {
+test('a persisted pagehide keeps the restored page interactive and able to copy a new review', async t => {
   const copied = [];
-  const { popup, destinations } = popupStub();
-  const { win, doc, $, choose, tap, type, submit } = fixture(t, win => {
-    setClipboard(win, async text => copied.push(text));
-    win.open = () => popup;
+  const { $, win, doc, tap, choose, type, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, async text => copied.push(text)),
   });
-  tap('selection');
+  tap('staff');
+  const firstReview = $('review-text').value;
+  submit();
+  await settle();
   const pagehide = new win.Event('pagehide');
   Object.defineProperty(pagehide, 'persisted', { value: true });
   win.dispatchEvent(pagehide);
-  win.dispatchEvent(new win.Event('pageshow'));
-  choose('brand', 'Casio');
-  assert.match($('review-text').value, /Casio/);
-  tap('staff');
-  assert.equal(doc.querySelector('[data-experience="staff"]').getAttribute('aria-pressed'), 'true');
-  assert.match($('review-text').value, /helpful staff/);
-  const ownWords = 'I only browsed Casio watches and asked about the warranty.';
-  type(ownWords);
   choose('language', 'hi');
   assert.equal(doc.documentElement.lang, 'hi');
-  assert.equal($('review-text').value, ownWords);
+  type('The service could be quicker.');
+  assert.equal($('copy-open').textContent.trim(), COPY.hi.copyOpen);
   submit();
   await settle();
-  assert.deepEqual(copied, [ownWords]);
-  assert.deepEqual(destinations, [GOOGLE_REVIEW_URL]);
-});
-
-test('Android copy failure never navigates until the customer uses manual recovery', async t => {
-  let copies = 0;
-  const { $, doc, type, submit, navigations } = fixture(t, (win, doc) => {
-    setAndroid(win);
-    win.open = () => { throw new Error('Android must not open a popup'); };
-    doc.execCommand = () => false;
-    setClipboard(win, async () => { copies++; throw new Error('Permission denied'); });
-  });
-  type('The staff were helpful.');
-  submit();
-  await settle();
-  assert.equal(copies, 1);
-  assert.deepEqual(navigations, []);
-  assert.equal($('status-message').textContent, COPY.en.copyFailed);
-  assert.equal($('open-google').hidden, false);
-  assert.equal(doc.activeElement, $('review-text'));
-  assert.equal($('review-text').selectionStart, 0);
-  assert.equal($('review-text').selectionEnd, $('review-text').value.length);
-  $('open-google').click();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT]);
-  assert.equal($('open-google').hidden, false);
-  $('open-google').click();
-  assert.deepEqual(navigations, [ANDROID_MAPS_INTENT, GOOGLE_REVIEW_URL]);
-  assert.equal(copies, 1);
+  assert.deepEqual(copied, [firstReview, 'The service could be quicker.']);
+  assert.deepEqual(destinations, [googleURL, googleURL]);
+  assert.equal($('copy-open').disabled, false);
 });

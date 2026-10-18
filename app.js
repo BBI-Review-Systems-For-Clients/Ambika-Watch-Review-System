@@ -1,7 +1,8 @@
-import { ANDROID_MAPS_INTENT, BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES, composeReview } from './review-core.js';
+import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES, composeReview } from './review-core.js';
+import { ANDROID_MAPS_INTENT, getReviewDestination } from './review-navigation.js';
 import { COPY } from './i18n.js';
 
-export function initReviewApp(doc = document, win = window) {
+export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url) } = {}) {
   const $ = id => doc.getElementById(id);
   const editor = $('review-text');
   const language = $('language');
@@ -9,11 +10,10 @@ export function initReviewApp(doc = document, win = window) {
   const brand = $('brand');
   const submit = $('copy-open');
   const selected = new Set();
-  const android = /Android/i.test(win.navigator.userAgentData?.platform || win.navigator.userAgent);
-  const destination = android ? ANDROID_MAPS_INTENT : GOOGLE_REVIEW_URL;
-  let recoveryDestination = destination;
   let edited = false;
   let copying = false;
+  let readyToLeave = false;
+  let nextDestination = getReviewDestination(win.navigator);
   let disposed = false;
   const listeners = [];
   const on = (element, event, handler) => {
@@ -21,21 +21,23 @@ export function initReviewApp(doc = document, win = window) {
     listeners.push(() => element.removeEventListener(event, handler));
   };
   const copy = () => COPY[language.value] || COPY.en;
-  const notify = (key, tone = '', recovery = false) => {
-    $('status-message').textContent = key ? copy()[key] : '';
+  const notify = (key, tone = '') => {
+    $('status').textContent = key ? copy()[key] : '';
     $('status').dataset.tone = tone;
-    $('status').hidden = !key;
-    $('open-google').hidden = !recovery;
   };
   const updateEditor = () => {
     submit.disabled = copying || !editor.value.trim();
+    editor.readOnly = copying;
+    doc.querySelectorAll('select, [data-experience]').forEach(control => { control.disabled = copying; });
+    submit.querySelector('span').textContent = copying ? copy().busy : readyToLeave ? copy().leaveReview : copy().copyOpen;
     const words = editor.value.trim().split(/\s+/u).filter(Boolean).length;
     $('word-count').textContent = `${words} ${copy().words}`;
   };
-  const draft = () => composeReview({ language: language.value, experiences: [...selected], product: product.value, brand: brand.value });
   const refresh = () => {
-    editor.value = draft();
+    editor.value = composeReview({ language: language.value, experiences: [...selected], product: product.value, brand: brand.value });
     edited = false;
+    readyToLeave = false;
+    nextDestination = getReviewDestination(win.navigator);
     notify('');
     updateEditor();
   };
@@ -58,7 +60,7 @@ export function initReviewApp(doc = document, win = window) {
       changeChoices();
     });
   }
-  on(editor, 'input', () => { edited = true; updateEditor(); notify(''); });
+  on(editor, 'input', () => { edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); updateEditor(); notify(''); });
   on(product, 'change', changeChoices);
   on(brand, 'change', changeChoices);
   function translate() {
@@ -95,69 +97,47 @@ export function initReviewApp(doc = document, win = window) {
           new Promise((_, reject) => { timer = win.setTimeout(() => reject(new Error('Clipboard timeout')), 2500); }),
         ]);
         return true;
-      } catch { /* Try a selected-text copy before asking for a manual copy. */ }
+      } catch { /* Fall back to a selected-text copy. */ }
       finally { win.clearTimeout(timer); }
     }
     try { return legacyCopy(); } catch { return false; }
   }
-  function navigate(target = destination) {
-    try {
-      win.location.assign(target);
-      // Some Android browsers silently refuse an intent. Keep a normal HTTPS
-      // fallback available if the customer remains on this page.
-      recoveryDestination = GOOGLE_REVIEW_URL;
-      notify(target === ANDROID_MAPS_INTENT ? 'copiedMaps' : 'copied', '', target === ANDROID_MAPS_INTENT);
-    } catch {
-      // Keep a user-initiated retry available if the browser rejects navigation.
-      recoveryDestination = GOOGLE_REVIEW_URL;
-      notify('popupBlocked', '', true);
-    }
+  function leaveReview() {
+    const target = nextDestination;
+    try { navigate(target); }
+    catch { notify('openFailed', 'error'); }
+    // A second real tap uses HTTPS if the app launch is refused or ignored.
+    if (target === ANDROID_MAPS_INTENT) nextDestination = GOOGLE_REVIEW_URL;
   }
-  on($('open-google'), 'click', () => navigate(recoveryDestination));
   on($('review-form'), 'submit', async event => {
     event.preventDefault();
     if (copying) return;
     if (!editor.value.trim()) { notify('empty', 'error'); editor.focus(); return; }
+    if (readyToLeave) { leaveReview(); return; }
     const text = editor.value.trim();
-    recoveryDestination = destination;
     copying = true;
-    notify('');
+    // Keep the visible and copied draft consistent while the clipboard is pending.
+    editor.readOnly = true;
     updateEditor();
-    submit.querySelector('span').textContent = copy().busy;
-    let popup;
-    try {
-      // Copy synchronously on Android when possible so app launch stays within
-      // the original customer gesture. No background searches or clicks run.
-      let copied = false;
-      if (android) {
-        try { copied = legacyCopy(); } catch { /* Use the Clipboard API below. */ }
-      } else {
-        // Reserve the tab before awaiting clipboard permission on other devices.
-        try { popup = win.open('about:blank', '_blank'); if (popup) popup.opener = null; } catch { popup = null; }
-      }
-      const copiedDuringClick = copied;
-      if (!copied) copied = await clipboardWrite(text);
-      if (disposed) { try { popup?.close(); } catch {} return; }
-      if (!copied) {
-        try { popup?.close(); } catch {}
-        editor.focus();
-        editor.select();
-        notify('copyFailed', 'error', true);
-      } else if (android) {
-        // A permission prompt can consume the gesture required by Chrome's
-        // Android intents. Offer a real tap instead of a timer-based retry.
-        if (!copiedDuringClick && win.navigator.userActivation?.isActive === false) {
-          notify('popupBlocked', '', true);
-        } else navigate();
-      } else if (popup && !popup.closed) {
-        try { popup.location.replace(GOOGLE_REVIEW_URL); notify('copied'); }
-        catch { try { popup.close(); } catch {} navigate(); }
-      } else navigate();
-    } finally {
-      copying = false;
-      submit.querySelector('span').textContent = copy().copyOpen;
-      updateEditor();
+    const android = nextDestination === ANDROID_MAPS_INTENT;
+    let copied = false;
+    // Preserve the original click's activation for Android app intents.
+    if (android) { try { copied = legacyCopy(); } catch {} }
+    const copiedDuringClick = copied;
+    if (!copied) copied = await clipboardWrite(text);
+    copying = false;
+    editor.readOnly = false;
+    readyToLeave = true;
+    if (disposed) { updateEditor(); return; }
+    if (!copied) {
+      editor.focus(); editor.select();
+      notify('copyFailed', 'error');
+    } else {
+      notify('copied');
+      if (android && !copiedDuringClick && win.navigator.userActivation?.isActive === false) notify('openFailed', 'error');
+      else leaveReview();
     }
+    updateEditor();
   });
 
   translate();
