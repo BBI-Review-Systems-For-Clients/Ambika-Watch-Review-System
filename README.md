@@ -49,4 +49,4 @@ Open `http://localhost:8080` locally. ES modules require HTTP, not opening `inde
 
 GitHub Pages serves the `main` branch at `/` with HTTPS and `.nojekyll`. No CNAME from another client's review system is used. Pushes to `main` are automatically published by GitHub Pages. The site is entirely self-contained; production does not depend on a package CDN.
 
-After the GitHub connection permits creating/accessing the new repository, run `bash deploy-github.sh`. It checks the account and exact repository, runs the checks, pushes without force, then enables Pages. It refuses an unexpected remote or branch and never changes another repository. The current connection returned HTTP 403 `Resource not accessible by integration` for repository creation, so no live deployment is claimed in this delivery.
+To publish an update, run `bash deploy-github.sh`. It checks the account and exact repository, runs the checks, pushes without force, then enables Pages when needed. It refuses an unexpected remote or branch and never changes another repository.
