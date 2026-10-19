@@ -16,18 +16,18 @@ const positiveIds = ['selection', 'staff', 'value', 'quick'];
 const productIds = ['women', 'men', 'gift', 'clock'];
 const products = {
   en: { women: "women's watches", men: "men's watches", gift: 'watches for gifting', clock: 'wall clocks', none: 'watches' },
-  hi: { women: 'महिलाओं की घड़ियाँ', men: 'पुरुषों की घड़ियाँ', gift: 'उपहार के लिए घड़ियाँ', clock: 'दीवार घड़ियाँ', none: 'घड़ियाँ' },
-  gu: { women: 'મહિલાઓની ઘડિયાળો', men: 'પુરુષોની ઘડિયાળો', gift: 'ભેટ માટે ઘડિયાળો', clock: 'દીવાલ ઘડિયાળો', none: 'ઘડિયાળો' },
+  hi: { women: 'ladies watches', men: 'gents watches', gift: 'gift ke liye watches', clock: 'wall clocks', none: 'watches' },
+  gu: { women: 'ladies watches', men: 'gents watches', gift: 'gift maate watches', clock: 'wall clocks', none: 'watches' },
 };
 const positiveText = {
   en: { selection: 'the selection', staff: 'helpful staff', value: 'value for money', quick: 'quick service' },
-  hi: { selection: 'वैरायटी अच्छी थी', staff: 'स्टाफ ने मदद की', value: 'कीमतों के हिसाब से वैल्यू अच्छी लगी', quick: 'सर्विस जल्दी मिली' },
-  gu: { selection: 'વેરાયટી સારી હતી', staff: 'સ્ટાફે મદદ કરી', value: 'કિંમત પ્રમાણે સારી વેલ્યુ લાગી', quick: 'સર્વિસ ઝડપથી મળી' },
+  hi: { selection: 'variety achhi thi', staff: 'staff ne madad ki', value: 'price ke hisaab se value achhi lagi', quick: 'service jaldi mili' },
+  gu: { selection: 'variety sari hati', staff: 'staff e madad kari', value: 'kimat pramane sari value lagi', quick: 'service jhadpi mali' },
 };
 
 function joinItems(items, language) {
   if (items.length < 2) return items[0] || '';
-  const conjunction = { en: 'and', hi: 'और', gu: 'અને' }[language];
+  const conjunction = { en: 'and', hi: 'aur', gu: 'ane' }[language];
   return `${items.slice(0, -1).join(', ')} ${conjunction} ${items.at(-1)}`;
 }
 
@@ -49,9 +49,9 @@ export function composeReview(input = {}) {
     if (language === 'en') {
       sentences.push(`I explored ${chosenBrand ? `${chosenBrand} ` : ''}${item} at Ambika Watch & Gift in Surat.`);
     } else if (language === 'hi') {
-      sentences.push(`मैंने सूरत के Ambika Watch & Gift में ${chosenBrand ? `${chosenBrand} ब्रांड की ` : ''}${item} देखीं।`);
+      sentences.push(`Maine Surat ke Ambika Watch & Gift mein ${chosenBrand ? `${chosenBrand} brand ki ` : ''}${item} dekhi.`);
     } else {
-      sentences.push(`મેં સુરતના Ambika Watch & Giftમાં ${chosenBrand ? `${chosenBrand} બ્રાન્ડની ` : ''}${item} જોઈ.`);
+      sentences.push(`Me Surat na Ambika Watch & Gift ma ${chosenBrand ? `${chosenBrand} brand ni ` : ''}${item} joi.`);
     }
   }
 
@@ -61,9 +61,9 @@ export function composeReview(input = {}) {
     if (language === 'en') {
       sentences.push(`${sentences.length ? 'I appreciated' : 'At Ambika Watch & Gift in Surat, I appreciated'} ${list}.`);
     } else if (language === 'hi') {
-      sentences.push(`${sentences.length ? 'यहाँ' : 'सूरत के Ambika Watch & Gift में'} ${list}।`);
+      sentences.push(`${sentences.length ? 'Yahan' : 'Surat ke Ambika Watch & Gift mein'} ${list}.`);
     } else {
-      sentences.push(`${sentences.length ? 'અહીં' : 'સુરતના Ambika Watch & Giftમાં'} ${list}.`);
+      sentences.push(`${sentences.length ? 'Ahiyan' : 'Surat na Ambika Watch & Gift ma'} ${list}.`);
     }
   }
 
@@ -77,15 +77,15 @@ export function composeReview(input = {}) {
         ? `${context} was mixed${improve ? ', with room for improvement' : ''}.`
         : `${hasContext ? 'I felt there' : 'At Ambika Watch & Gift in Surat, I felt there'} was room for improvement.`);
     } else if (language === 'hi') {
-      const context = hasContext ? 'मेरा अनुभव' : 'सूरत के Ambika Watch & Gift में मेरा अनुभव';
+      const context = hasContext ? 'Mera experience' : 'Surat ke Ambika Watch & Gift mein mera experience';
       sentences.push(mixed
-        ? `${context} मिला-जुला रहा${improve ? ' और सुधार की गुंजाइश लगी' : ''}।`
-        : `${hasContext ? 'मुझे' : 'सूरत के Ambika Watch & Gift में मुझे'} सुधार की गुंजाइश लगी।`);
+        ? `${context} mila-jula raha${improve ? ' aur sudhaar ki gunjaish lagi' : ''}.`
+        : `${hasContext ? 'Mujhe' : 'Surat ke Ambika Watch & Gift mein mujhe'} sudhaar ki gunjaish lagi.`);
     } else {
-      const context = hasContext ? 'મારો અનુભવ' : 'સુરતના Ambika Watch & Giftમાં મારો અનુભવ';
+      const context = hasContext ? 'Maro experience' : 'Surat na Ambika Watch & Gift ma maro experience';
       sentences.push(mixed
-        ? `${context} મિશ્ર રહ્યો${improve ? ' અને સુધારાની જરૂર લાગી' : ''}.`
-        : `${hasContext ? 'મને' : 'સુરતના Ambika Watch & Giftમાં મને'} સુધારાની જરૂર લાગી.`);
+        ? `${context} mixed rahyo${improve ? ' ane sudhar ni jarur lagi' : ''}.`
+        : `${hasContext ? 'Mane' : 'Surat na Ambika Watch & Gift ma mane'} sudhar ni jarur lagi.`);
     }
   }
 

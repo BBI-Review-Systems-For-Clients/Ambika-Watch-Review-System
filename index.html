@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#20355c">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <meta name="description" content="Share your visit to Ambika Watch & Gift, Surat. Write a short review in English, Hindi or Gujarati, then copy it and open Google.">
+  <meta name="description" content="Share your visit to Ambika Watch & Gift, Surat. Edit a short draft in English, Roman Hindi or Roman Gujarati, then copy it and open Google.">
   <meta property="og:title" content="Ambika Watch Review System">
   <meta property="og:description" content="Your visit. Your words. A quick review for Ambika Watch & Gift, Surat.">
   <meta property="og:type" content="website">
@@ -33,11 +33,17 @@
         <label for="language" data-i18n="languageLabel">Review language</label>
         <select id="language" name="language">
           <option value="en">English</option>
-          <option value="hi">हिन्दी</option>
-          <option value="gu">ગુજરાતી</option>
+          <option value="hi">Hindi (Roman)</option>
+          <option value="gu">Gujarati (Roman)</option>
         </select>
       </div>
 
+      <div class="draft-heading"><label for="review-text" data-i18n="reviewLabel">Your short review</label></div>
+      <div class="review-editor"><textarea id="review-text" name="review" rows="5" maxlength="1000" spellcheck="true" aria-describedby="review-help" placeholder="Write about your visit, or personalize the draft below…"></textarea><div class="editor-footer"><span data-i18n="editable">Always yours to edit</span><span id="word-count">0 words</span></div></div>
+      <p class="review-help" id="review-help" data-i18n="reviewHelp">Keep only what reflects your visit. Positive, mixed and critical feedback are all welcome.</p>
+
+      <details class="optional-details" id="personalize-review">
+        <summary><span data-i18n="detailsLabel">Personalize your review</span><span class="optional" data-i18n="optional">optional</span></summary>
       <fieldset class="experience-fieldset">
         <legend data-i18n="experienceLabel">Tap what matches your experience</legend>
         <div class="experience-chips" id="experience-chips">
@@ -49,9 +55,6 @@
           <button type="button" class="chip" data-experience="improve" aria-pressed="false">Could be better</button>
         </div>
       </fieldset>
-
-      <details class="optional-details">
-        <summary><span data-i18n="detailsLabel">Add a watch or brand</span><span class="optional" data-i18n="optional">optional</span></summary>
         <div class="details-grid">
           <div><label for="product" data-i18n="productLabel">What did you explore?</label>
             <select id="product" name="product">
@@ -66,10 +69,6 @@
         </div>
         <p class="details-help" data-i18n="brandHelp">Mention only a brand you actually saw. This list doesn't confirm current stock.</p>
       </details>
-
-      <div class="draft-heading"><label for="review-text" data-i18n="reviewLabel">Your short review</label></div>
-      <div class="review-editor"><textarea id="review-text" name="review" rows="5" maxlength="1000" spellcheck="true" aria-describedby="review-help" placeholder="Tap a detail above, or write a few words about your visit…"></textarea><div class="editor-footer"><span data-i18n="editable">Always yours to edit</span><span id="word-count">0 words</span></div></div>
-      <p class="review-help" id="review-help" data-i18n="reviewHelp">Keep only what reflects your visit. Positive, mixed and critical feedback are all welcome.</p>
 
       <button type="submit" id="copy-open" class="primary-button" disabled><span data-i18n="copyOpen">Copy &amp; Leave Review</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
       <p id="status" class="status" role="status" aria-live="polite"></p>

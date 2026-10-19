@@ -6,9 +6,19 @@ Live: https://bbi-review-systems-for-clients.github.io/Ambika-Watch-Review-Syste
 
 ## Customer flow
 
-1. Choose English, Hindi or Gujarati.
-2. Tap details that reflect the visit, or write directly. The order and approved wording of the choices vary each time the page opens. Watch category and brand are optional.
-3. Edit the short review, then tap **Copy & Leave Review**.
+1. A short editable starter draft appears automatically when the page opens.
+2. Choose English, Roman Hindi or Roman Gujarati. Optional **Personalize your review** details are collapsed below the editor.
+3. Select only details that reflect the visit, or write directly. The complete draft is randomly selected from a pool of alternative wordings for those details. Edit it, then tap **Copy & Leave Review**.
+
+## Review generator
+
+The existing HK Factory Outlet and MUKALAL reference sites each load `review.js`, select one complete string from a 500-review array with `Math.random()`, put it into the textarea on `DOMContentLoaded`, and resize the editor. Their Python generator is an optional offline authoring tool; it is not a live AI service.
+
+Ambika now follows that full-draft pool/selection/auto-load mechanism instead of returning the same fixed sentence for the same choices. `review-generator.js` builds unique complete drafts for the selected context, capped at 500, then selects one randomly. Within a tab, revisiting the same details avoids immediately repeating its last draft. No cross-visit history or browser storage is used.
+
+Without customer-supplied details, the opening pool contains neutral business-only starter text. Product, brand, service, value, praise and criticism appear only when supplied by the customer. Selected facts and sentiment remain constant across wording variants. User-written notes and manual edits are preserved. The draft auto-resizes, and the previously removed refresh/polish controls remain absent.
+
+References: [HK runtime](https://github.com/AnkitVaghasiya/HK-Factory-Outlet-VethiQ-Review/blob/main/review.js), [MUKALAL runtime](https://github.com/AnkitVaghasiya/MUKALAL-review/blob/main/review.js).
 
 On Android, the button requests Google Maps at Ambika's exact Place ID. If Maps is unavailable, Chrome's intent fallback opens the supplied HTTPS Google review form. Other devices open that form directly. Google controls the review action, sign-in, pasting and submission. No documented Maps intent guarantees opening the native review composer.
 
@@ -18,7 +28,7 @@ Android first attempts synchronous selected-text copying to retain the customer'
 
 ## Reviews and privacy
 
-Drafts use only the customer's selected experiences. Manual words are preserved when choices or the interface language change; clearing the editor allows the next choice to create a new draft. No rating, purchase, random brand or recommendation is invented. Critical and mixed feedback use the same destination as positive feedback.
+Personalized drafts use only the customer's selected experiences. Manual words are preserved when choices or the interface language change; clearing the editor allows the next choice to create a new draft. Hindi and Gujarati generated copy uses Roman letters as requested; customer-written native-script text is kept verbatim. No rating, purchase, random brand or recommendation is invented. Critical and mixed feedback use the same destination as positive feedback.
 
 The dropdown contains 29 verified names from the supplied list. Corrected spellings include **Lee Cooper**, **Emporio Armani**, **NAVIFORCE**, **REWARD**, and the full brand name **Canon Quartz**. Unverified “Mont Beree”, “Jean Friendi” and “Hong Kong” are withheld until the customer confirms their package-label spellings. The list does not confirm stock.
 

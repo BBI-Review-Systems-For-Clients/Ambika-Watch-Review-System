@@ -61,17 +61,28 @@ function setClipboard(win, writeText) {
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('the initial page has one primary action, no preset rating, and no removed secondary controls', t => {
-  const { doc, $ } = fixture(t);
-  assert.equal($('review-text').value, '');
-  assert.equal($('copy-open').disabled, true);
-  assert.equal($('word-count').textContent, '0 words');
+test('the initial page has an editable neutral starter, one ready action, and collapsed optional personalization', t => {
+  const { doc, $, win } = fixture(t);
+  const initialReview = $('review-text').value;
+  assert.ok(initialReview.trim().split(/\s+/u).length >= 1);
+  assert.match(initialReview, /Ambika Watch & Gift/);
+  assert.doesNotMatch(initialReview, /\b(?:bought|purchased|best|excellent|amazing|recommend|helpful staff|fair prices|quick service)\b|five.star|[1-5][ -]stars?/i);
+  assert.equal($('review-text').readOnly, false);
+  assert.ok(Number.parseFloat($('review-text').style.height) > 0);
+  assert.equal($('copy-open').disabled, false);
+  assert.ok(Number.parseInt($('word-count').textContent, 10) >= 1);
   assert.equal(doc.querySelectorAll('[data-experience][aria-pressed="true"]').length, 0);
   assert.equal(doc.querySelectorAll('[name="rating"], [role="radio"], input[type="radio"]').length, 0);
   assert.equal(doc.querySelectorAll('.primary-button').length, 1);
   assert.equal(doc.querySelectorAll('button[type="submit"]').length, 1);
   assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, .paste-help'), null);
   assert.equal($('copy-open').textContent.trim(), COPY.en.copyOpen);
+  assert.equal($('personalize-review').open, false);
+  assert.equal($('personalize-review').tagName, 'DETAILS');
+  assert.ok($('review-text').compareDocumentPosition($('personalize-review')) & win.Node.DOCUMENT_POSITION_FOLLOWING);
+  for (const control of doc.querySelectorAll('[data-experience], #product, #brand')) {
+    assert.equal(control.closest('details'), $('personalize-review'));
+  }
 });
 
 test('customer choices create a short editable draft with exactly the supplied brand names', t => {
@@ -82,14 +93,33 @@ test('customer choices create a short editable draft with exactly the supplied b
   choose('product', 'women');
   choose('brand', 'Titan');
   assert.equal(doc.querySelector('[data-experience="selection"]').getAttribute('aria-pressed'), 'true');
-  assert.match($('review-text').value, /Titan women's watches at Ambika Watch & Gift in Surat/);
-  assert.match($('review-text').value, /the selection and helpful staff/);
+  assert.match($('review-text').value, /Titan/);
+  assert.match($('review-text').value, /Ambika Watch & Gift/);
+  assert.match($('review-text').value, /Surat/);
+  assert.match($('review-text').value, /women|ladies/i);
+  assert.match($('review-text').value, /watch/i);
+  assert.match($('review-text').value, /selection|collection|range|variety/i);
+  assert.match($('review-text').value, /staff|team/i);
   assert.doesNotMatch($('review-text').value, /bought|purchased|five.star|best/i);
   assert.ok($('review-text').value.split(/\s+/u).length <= 60);
   assert.equal($('review-text').readOnly, false);
   assert.equal($('copy-open').disabled, false);
   tap('staff');
-  assert.doesNotMatch($('review-text').value, /helpful staff/);
+  assert.doesNotMatch($('review-text').value, /staff|team/i);
+});
+
+test('returning to the exact same selected facts produces a different full review before manual editing', t => {
+  const { doc, $, tap } = fixture(t);
+  tap('staff');
+  const firstStaffReview = $('review-text').value;
+  tap('selection');
+  tap('selection');
+  const nextStaffReview = $('review-text').value;
+  assert.deepEqual([...doc.querySelectorAll('[data-experience][aria-pressed="true"]')].map(chip => chip.dataset.experience), ['staff']);
+  assert.match(firstStaffReview, /staff|team/i);
+  assert.match(nextStaffReview, /staff|team/i);
+  assert.notEqual(nextStaffReview, firstStaffReview);
+  assert.doesNotMatch(nextStaffReview, /bought|purchased|five.star/i);
 });
 
 test('critical feedback can copy and leave through the same Google review destination', async t => {
@@ -99,7 +129,7 @@ test('critical feedback can copy and leave through the same Google review destin
   });
   tap('improve');
   const review = $('review-text').value;
-  assert.match(review, /room for improvement/);
+  assert.match(review, /improv|better/i);
   assert.equal($('copy-open').disabled, false);
   submit();
   await settle();
@@ -118,11 +148,27 @@ test('manual wording survives changes to chips, watch details, and language', t 
   assert.equal($('review-text').value, ownWords);
   assert.equal($('status').textContent, COPY.en.kept);
   choose('language', 'gu');
-  assert.equal(doc.documentElement.lang, 'gu');
+  assert.equal(doc.documentElement.lang, 'gu-Latn');
   assert.equal($('page-title').textContent, COPY.gu.heading);
   assert.equal($('review-text').value, ownWords);
   assert.equal($('status').textContent, COPY.gu.languageKept);
   assert.equal($('copy-open').disabled, false);
+});
+
+test('Hindi and Gujarati use Roman text and the matching language tags without altering selected facts', t => {
+  const { doc, $, choose, tap } = fixture(t);
+  tap('staff');
+  choose('brand', 'Titan');
+  for (const language of ['hi', 'gu']) {
+    choose('language', language);
+    assert.equal(doc.documentElement.lang, `${language}-Latn`);
+    assert.match($('review-text').value, /Ambika Watch & Gift/);
+    assert.match($('review-text').value, /Titan/);
+    assert.doesNotMatch($('review-text').value, /[\u0900-\u097f\u0a80-\u0aff]/u);
+    assert.doesNotMatch($('page-title').textContent, /[\u0900-\u097f\u0a80-\u0aff]/u);
+    assert.equal(doc.querySelector('[data-experience="staff"]').getAttribute('aria-pressed'), 'true');
+    assert.ok(Number.parseFloat($('review-text').style.height) > 0);
+  }
 });
 
 test('copy finishes before navigation; repeated clicks cannot copy or navigate twice while pending', async t => {
@@ -371,7 +417,7 @@ test('a persisted pagehide keeps the restored page interactive and able to copy 
   Object.defineProperty(pagehide, 'persisted', { value: true });
   win.dispatchEvent(pagehide);
   choose('language', 'hi');
-  assert.equal(doc.documentElement.lang, 'hi');
+  assert.equal(doc.documentElement.lang, 'hi-Latn');
   type('The service could be quicker.');
   assert.equal($('copy-open').textContent.trim(), COPY.hi.copyOpen);
   submit();
@@ -411,7 +457,8 @@ test('a browser without an on-device model immediately offers all six experience
   assert.equal($('experience-chips').dataset.optionsSource, 'local');
   tap('mixed');
   tap('improve');
-  assert.match($('review-text').value, /was mixed, with room for improvement/);
+  assert.match($('review-text').value, /mixed/i);
+  assert.match($('review-text').value, /improv|better/i);
 });
 
 test('a valid early on-device option result updates chip labels and order before any customer interaction', async t => {
@@ -432,10 +479,12 @@ test('a valid early on-device option result updates chip labels and order before
   assert.equal(modelRequests, 1);
   assert.deepEqual(chipSnapshot(doc), mockedAIOptions.map(option => ({ ...option, pressed: 'false' })));
   assert.equal($('experience-chips').dataset.optionsSource, 'on-device-ai');
-  assert.equal($('review-text').value, '');
-  assert.equal($('copy-open').disabled, true);
+  assert.ok($('review-text').value.trim());
+  assert.equal($('review-text').readOnly, false);
+  assert.doesNotMatch($('review-text').value, /bought|purchased|excellent|five.star/i);
+  assert.equal($('copy-open').disabled, false);
   tap('mixed');
-  assert.match($('review-text').value, /was mixed/);
+  assert.match($('review-text').value, /mixed/i);
   assert.equal(doc.querySelector('[data-experience="mixed"]').getAttribute('aria-pressed'), 'true');
 });
 
@@ -463,6 +512,6 @@ test('a delayed model result cannot replace chips, selections, or manual words a
   assert.deepEqual([...doc.querySelectorAll('[data-experience]')], originalNodes);
   assert.deepEqual(beforeResult.filter(chip => chip.pressed === 'true').map(chip => chip.id).sort(), ['mixed', 'staff']);
   assert.equal($('review-text').value, 'The staff helped, but I did not find a comfortable strap.');
-  assert.equal(doc.documentElement.lang, 'gu');
+  assert.equal(doc.documentElement.lang, 'gu-Latn');
   assert.equal($('experience-chips').dataset.optionsSource, 'local');
 });

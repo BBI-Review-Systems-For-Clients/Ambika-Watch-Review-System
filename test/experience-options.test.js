@@ -31,8 +31,7 @@ test('every language has five distinct, short vetted variants for every semantic
       assertAllExperiences(options);
       for (const { id, label } of options) {
         variants.get(id).add(label);
-        if (language === 'hi') assert.match(label, /[\u0900-\u097f]/u);
-        if (language === 'gu') assert.match(label, /[\u0a80-\u0aff]/u);
+        assert.doesNotMatch(label, /[\u0900-\u097f\u0a80-\u0aff]/u);
       }
     }
     for (const pool of variants.values()) assert.equal(pool.size, 5);

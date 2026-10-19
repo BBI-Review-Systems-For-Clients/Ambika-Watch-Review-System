@@ -26,15 +26,22 @@ test('English uses only selected facts without inferring a purchase or brand', (
   assert.equal(composeReview({ product: 'women', experiences: ['staff', 'selection', 'staff'] }), review);
 });
 
-test('Hindi and Gujarati produce native-script drafts from the selected experiences', () => {
+test('Hindi and Gujarati produce Roman-script drafts from the selected experiences', () => {
   const hindi = composeReview({ language: 'hi', product: 'men', brand: 'Titan', experiences: ['quick'] });
-  assert.match(hindi, /पुरुषों की घड़ियाँ/);
+  assert.match(hindi, /gents watches/);
   assert.match(hindi, /Titan/);
-  assert.match(hindi, /सर्विस जल्दी मिली/);
+  assert.match(hindi, /service jaldi mili/);
   const gujarati = composeReview({ language: 'gu', product: 'gift', brand: 'Casio', experiences: ['value'] });
-  assert.match(gujarati, /ભેટ માટે ઘડિયાળો/);
+  assert.match(gujarati, /gift maate watches/);
   assert.match(gujarati, /Casio/);
-  assert.match(gujarati, /કિંમત પ્રમાણે સારી વેલ્યુ લાગી/);
+  assert.match(gujarati, /kimat pramane sari value lagi/);
+  for (const review of [hindi, gujarati]) {
+    assert.doesNotMatch(review, /[\u0900-\u097f\u0a80-\u0aff]/u);
+    assert.doesNotMatch(review, /bought|purchased|kharid|khareed|lidhu|lidhi|lidho|best|five.star/i);
+    assert.doesNotMatch(review, /variety|staff|mila-jula|mixed|sudhaa?r/);
+  }
+  assert.doesNotMatch(hindi, /value|Casio/);
+  assert.doesNotMatch(gujarati, /service|Titan/);
 });
 
 test('unsupported brands are ignored, including injected instructions', () => {
@@ -62,14 +69,16 @@ test('stale brand spellings and unresolved names cannot enter a generated draft'
 });
 
 test('mixed and critical experiences remain explicit in every language', () => {
-  const expected = { en: /was mixed, with room for improvement/, hi: /मिला-जुला रहा और सुधार की गुंजाइश लगी/, gu: /મિશ્ર રહ્યો અને સુધારાની જરૂર લાગી/ };
+  const expected = { en: /was mixed, with room for improvement/, hi: /mila-jula raha aur sudhaar ki gunjaish lagi/, gu: /mixed rahyo ane sudhar ni jarur lagi/ };
+  const critical = { en: /room for improvement/, hi: /sudhaar ki gunjaish lagi/, gu: /sudhar ni jarur lagi/ };
   for (const language of LANGUAGES) {
     const review = composeReview({ language, experiences: ['staff', 'mixed', 'improve'] });
     assert.match(review, expected[language]);
     assert.doesNotMatch(review, /highly recommend|excellent|perfect|best|five.star/i);
+    const criticalOnly = composeReview({ language, experiences: ['improve'] });
+    assert.match(criticalOnly, critical[language]);
+    assert.doesNotMatch(criticalOnly, /appreciated|helpful|good|recommend|variety|staff|value|service/i);
   }
-  assert.match(composeReview({ experiences: ['improve'] }), /room for improvement/);
-  assert.doesNotMatch(composeReview({ experiences: ['improve'] }), /appreciated|helpful|good|recommend/);
 });
 
 test('customer notes are preserved verbatim, including criticism and line breaks', () => {
@@ -77,6 +86,10 @@ test('customer notes are preserved verbatim, including criticism and line breaks
   assert.equal(composeReview({ notes }), notes);
   const draft = composeReview({ product: 'men', notes });
   assert.ok(draft.endsWith(`\n\n${notes}`));
+  for (const language of ['hi', 'gu']) {
+    const nativeNotes = '  सर्विस में देरी हुई।\nસર્વિસમાં મોડું થયું.  ';
+    assert.ok(composeReview({ language, experiences: ['improve'], notes: nativeNotes }).endsWith(`\n\n${nativeNotes}`));
+  }
   const longNotes = 'A'.repeat(650);
   assert.equal(composeReview({ notes: longNotes }), longNotes);
 });
@@ -87,6 +100,7 @@ test('full generated drafts stay concise and deterministic before customer notes
       const input = { language, product, brand: 'Daniel Wellington', experiences: ['selection', 'staff', 'value', 'quick', 'mixed', 'improve'] };
       const review = composeReview(input);
       assert.equal(review, composeReview(input));
+      assert.doesNotMatch(review, /[\u0900-\u097f\u0a80-\u0aff]/u);
       assert.ok(review.split(/\s+/u).length <= 60, `${language}/${product}: ${review}`);
       assert.ok(review.split(/[.।]/u).filter(Boolean).length <= 3);
     }

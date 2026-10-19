@@ -1,7 +1,8 @@
-import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES, composeReview } from './review-core.js';
+import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES } from './review-core.js';
 import { ANDROID_MAPS_INTENT, getReviewDestination } from './review-navigation.js';
 import { COPY } from './i18n.js';
 import { getExperienceOptions, getOnDeviceExperienceOptions } from './experience-options.js';
+import { createReviewGenerator } from './review-generator.js';
 
 export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url), random = Math.random, generateOptions = getOnDeviceExperienceOptions } = {}) {
   const $ = id => doc.getElementById(id);
@@ -11,6 +12,7 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   const brand = $('brand');
   const submit = $('copy-open');
   const selected = new Set();
+  const generator = createReviewGenerator({ random });
   let edited = false;
   let copying = false;
   let readyToLeave = false;
@@ -37,12 +39,17 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     $('word-count').textContent = `${words} ${copy().words}`;
   };
   const refresh = () => {
-    editor.value = composeReview({ language: language.value, experiences: [...selected], product: product.value, brand: brand.value });
+    editor.value = generator.generate({ language: language.value, experiences: [...selected], product: product.value, brand: brand.value });
+    resizeEditor();
     edited = false;
     readyToLeave = false;
     nextDestination = getReviewDestination(win.navigator);
     notify('');
     updateEditor();
+  };
+  const resizeEditor = () => {
+    editor.style.height = 'auto';
+    editor.style.height = `${Math.max(124, editor.scrollHeight)}px`;
   };
   const changeChoices = () => {
     if (edited && editor.value.trim()) notify('kept');
@@ -75,11 +82,11 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     });
   }
   on(editor, 'focus', markInteraction);
-  on(editor, 'input', () => { markInteraction(); edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); updateEditor(); notify(''); });
+  on(editor, 'input', () => { markInteraction(); edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); resizeEditor(); updateEditor(); notify(''); });
   on(product, 'change', () => { markInteraction(); changeChoices(); });
   on(brand, 'change', () => { markInteraction(); changeChoices(); });
   function translate() {
-    doc.documentElement.lang = language.value;
+    doc.documentElement.lang = language.value === 'en' ? 'en' : `${language.value}-Latn`;
     doc.querySelectorAll('[data-i18n]').forEach(element => {
       const value = copy()[element.dataset.i18n];
       if (value) element.textContent = value;
@@ -160,6 +167,7 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   });
 
   translate();
+  refresh();
   if (win.LanguageModel && language.value === 'en') {
     Promise.resolve(generateOptions({ LanguageModel: win.LanguageModel, language: language.value, random, signal: optionController.signal }))
       .then(result => {
