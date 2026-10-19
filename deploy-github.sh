@@ -20,7 +20,7 @@ else
   git remote add origin "$remote"
 fi
 [[ "$(git branch --show-current)" == 'main' ]] || { printf '%s\n' 'Expected main branch; stopped.' >&2; exit 1; }
-git add .gitignore .nojekyll README.md index.html style.css app.js i18n.js review-core.js review-navigation.js package.json package-lock.json test deploy-github.sh
+git add .gitignore .nojekyll README.md index.html style.css app.js i18n.js review-core.js review-navigation.js experience-options.js package.json package-lock.json test deploy-github.sh
 if ! git diff --cached --quiet; then git commit -m 'Build Ambika Watch Review System'; fi
 git push -u origin main
 if ! gh api "repos/$target/pages" >/dev/null 2>&1; then

@@ -10,14 +10,13 @@ const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const googleURL = 'https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8';
 const allowedBrands = [
   'Casio', 'Timex', 'Tommy Hilfiger', 'Police', 'Kenneth Cole', 'Obaku',
-  'DKNY', 'Guess', 'Anne Klein', 'Lee Copper', 'Daniel Wellington',
-  'Armani Exchange', 'Emporia Armani', 'Bering', 'Fossil', 'Michael Kors',
-  'Skagen', 'Mont Beree', 'Navi Force', 'Rewards', 'Valentine',
-  'Jean Friendi', 'Hong Kong', 'Hislon', 'Titan', 'Fastrack', 'Sonata',
-  'Logues', 'Onex', 'Crony', 'Canon', 'Time Square',
+  'DKNY', 'Guess', 'Anne Klein', 'Lee Cooper', 'Daniel Wellington',
+  'Armani Exchange', 'Emporio Armani', 'Bering', 'Fossil', 'Michael Kors',
+  'Skagen', 'NAVIFORCE', 'REWARD', 'Valentine', 'Hislon', 'Titan',
+  'Fastrack', 'Sonata', 'Logues', 'Onex', 'Crony', 'Canon Quartz', 'Time Square',
 ];
 
-function fixture(t, { configure = () => {}, navigate } = {}) {
+function fixture(t, { configure = () => {}, navigate, random = () => 0.5, generateOptions } = {}) {
   const win = new Window({
     url: 'https://example.test/ambika-watch-review-system/',
     settings: {
@@ -35,7 +34,7 @@ function fixture(t, { configure = () => {}, navigate } = {}) {
   doc.write(html);
   configure(win, doc);
   const destinations = [];
-  const app = initReviewApp(doc, win, { navigate: navigate || (url => destinations.push(url)) });
+  const app = initReviewApp(doc, win, { navigate: navigate || (url => destinations.push(url)), random, generateOptions });
   t.after(async () => {
     app.dispose();
     await win.happyDOM.close();
@@ -380,4 +379,90 @@ test('a persisted pagehide keeps the restored page interactive and able to copy 
   assert.deepEqual(copied, [firstReview, 'The service could be quicker.']);
   assert.deepEqual(destinations, [googleURL, googleURL]);
   assert.equal($('copy-open').disabled, false);
+});
+
+const mockedAIOptions = [
+  { id: 'improve', label: 'Could be better' },
+  { id: 'mixed', label: 'Mixed experience' },
+  { id: 'quick', label: 'Quick service' },
+  { id: 'value', label: 'Fair prices' },
+  { id: 'staff', label: 'Helpful staff' },
+  { id: 'selection', label: 'Good collection' },
+];
+
+function chipSnapshot(doc) {
+  return [...doc.querySelectorAll('[data-experience]')].map(chip => ({
+    id: chip.dataset.experience,
+    label: chip.textContent,
+    pressed: chip.getAttribute('aria-pressed'),
+  }));
+}
+
+test('a browser without an on-device model immediately offers all six experiences without requesting AI', async t => {
+  let modelRequests = 0;
+  const { doc, $, tap } = fixture(t, {
+    generateOptions: async () => { modelRequests++; return { usedAI: true, options: mockedAIOptions }; },
+  });
+  await settle();
+  const chips = chipSnapshot(doc);
+  assert.equal(modelRequests, 0);
+  assert.deepEqual(chips.map(chip => chip.id).sort(), ['improve', 'mixed', 'quick', 'selection', 'staff', 'value']);
+  assert.ok(chips.every(chip => chip.label.trim() && chip.pressed === 'false'));
+  assert.equal($('experience-chips').dataset.optionsSource, 'local');
+  tap('mixed');
+  tap('improve');
+  assert.match($('review-text').value, /was mixed, with room for improvement/);
+});
+
+test('a valid early on-device option result updates chip labels and order before any customer interaction', async t => {
+  const model = {};
+  let modelRequests = 0;
+  const { doc, $, tap } = fixture(t, {
+    configure: win => { win.LanguageModel = model; },
+    generateOptions: async ({ LanguageModel, language, random, signal }) => {
+      modelRequests++;
+      assert.equal(LanguageModel, model);
+      assert.equal(language, 'en');
+      assert.equal(random(), 0.5);
+      assert.equal(signal.aborted, false);
+      return { usedAI: true, options: mockedAIOptions };
+    },
+  });
+  await settle();
+  assert.equal(modelRequests, 1);
+  assert.deepEqual(chipSnapshot(doc), mockedAIOptions.map(option => ({ ...option, pressed: 'false' })));
+  assert.equal($('experience-chips').dataset.optionsSource, 'on-device-ai');
+  assert.equal($('review-text').value, '');
+  assert.equal($('copy-open').disabled, true);
+  tap('mixed');
+  assert.match($('review-text').value, /was mixed/);
+  assert.equal(doc.querySelector('[data-experience="mixed"]').getAttribute('aria-pressed'), 'true');
+});
+
+test('a delayed model result cannot replace chips, selections, or manual words after customer interaction', async t => {
+  let completeOptions;
+  let modelSignal;
+  const { doc, $, tap, type, choose } = fixture(t, {
+    configure: win => { win.LanguageModel = {}; },
+    generateOptions: ({ signal }) => {
+      modelSignal = signal;
+      return new Promise(resolve => { completeOptions = resolve; });
+    },
+  });
+  assert.equal(modelSignal.aborted, false);
+  tap('staff');
+  tap('mixed');
+  type('The staff helped, but I did not find a comfortable strap.');
+  choose('language', 'gu');
+  assert.equal(modelSignal.aborted, true);
+  const beforeResult = chipSnapshot(doc);
+  const originalNodes = [...doc.querySelectorAll('[data-experience]')];
+  completeOptions({ usedAI: true, options: mockedAIOptions });
+  await settle();
+  assert.deepEqual(chipSnapshot(doc), beforeResult);
+  assert.deepEqual([...doc.querySelectorAll('[data-experience]')], originalNodes);
+  assert.deepEqual(beforeResult.filter(chip => chip.pressed === 'true').map(chip => chip.id).sort(), ['mixed', 'staff']);
+  assert.equal($('review-text').value, 'The staff helped, but I did not find a comfortable strap.');
+  assert.equal(doc.documentElement.lang, 'gu');
+  assert.equal($('experience-chips').dataset.optionsSource, 'local');
 });

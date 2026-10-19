@@ -1,11 +1,10 @@
 /** Customer-grounded review drafting. No purchase, rating or brand is inferred. */
 export const BRAND_NAMES = Object.freeze([
   'Casio', 'Timex', 'Tommy Hilfiger', 'Police', 'Kenneth Cole', 'Obaku',
-  'DKNY', 'Guess', 'Anne Klein', 'Lee Copper', 'Daniel Wellington',
-  'Armani Exchange', 'Emporia Armani', 'Bering', 'Fossil', 'Michael Kors',
-  'Skagen', 'Mont Beree', 'Navi Force', 'Rewards', 'Valentine',
-  'Jean Friendi', 'Hong Kong', 'Hislon', 'Titan', 'Fastrack', 'Sonata',
-  'Logues', 'Onex', 'Crony', 'Canon', 'Time Square',
+  'DKNY', 'Guess', 'Anne Klein', 'Lee Cooper', 'Daniel Wellington',
+  'Armani Exchange', 'Emporio Armani', 'Bering', 'Fossil', 'Michael Kors',
+  'Skagen', 'NAVIFORCE', 'REWARD', 'Valentine', 'Hislon', 'Titan',
+  'Fastrack', 'Sonata', 'Logues', 'Onex', 'Crony', 'Canon Quartz', 'Time Square',
 ]);
 
 export const GOOGLE_REVIEW_URL =

@@ -1,8 +1,9 @@
 import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES, composeReview } from './review-core.js';
 import { ANDROID_MAPS_INTENT, getReviewDestination } from './review-navigation.js';
 import { COPY } from './i18n.js';
+import { getExperienceOptions, getOnDeviceExperienceOptions } from './experience-options.js';
 
-export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url) } = {}) {
+export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url), random = Math.random, generateOptions = getOnDeviceExperienceOptions } = {}) {
   const $ = id => doc.getElementById(id);
   const editor = $('review-text');
   const language = $('language');
@@ -15,6 +16,8 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   let readyToLeave = false;
   let nextDestination = getReviewDestination(win.navigator);
   let disposed = false;
+  let interacted = false;
+  const optionController = new AbortController();
   const listeners = [];
   const on = (element, event, handler) => {
     element.addEventListener(event, handler);
@@ -45,6 +48,16 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     if (edited && editor.value.trim()) notify('kept');
     else refresh();
   };
+  const markInteraction = () => { interacted = true; optionController.abort(); };
+  const renderExperiences = options => {
+    const container = $('experience-chips');
+    for (const option of options) {
+      const chip = container.querySelector(`[data-experience="${option.id}"]`);
+      if (chip) { chip.textContent = option.label; container.append(chip); }
+    }
+  };
+  on($('review-form'), 'pointerdown', markInteraction);
+  on($('review-form'), 'keydown', markInteraction);
 
   for (const name of BRAND_NAMES) {
     const option = doc.createElement('option');
@@ -54,15 +67,17 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   }
   for (const chip of doc.querySelectorAll('[data-experience]')) {
     on(chip, 'click', () => {
+      markInteraction();
       const id = chip.dataset.experience;
       if (selected.has(id)) selected.delete(id); else selected.add(id);
       chip.setAttribute('aria-pressed', String(selected.has(id)));
       changeChoices();
     });
   }
-  on(editor, 'input', () => { edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); updateEditor(); notify(''); });
-  on(product, 'change', changeChoices);
-  on(brand, 'change', changeChoices);
+  on(editor, 'focus', markInteraction);
+  on(editor, 'input', () => { markInteraction(); edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); updateEditor(); notify(''); });
+  on(product, 'change', () => { markInteraction(); changeChoices(); });
+  on(brand, 'change', () => { markInteraction(); changeChoices(); });
   function translate() {
     doc.documentElement.lang = language.value;
     doc.querySelectorAll('[data-i18n]').forEach(element => {
@@ -70,9 +85,12 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
       if (value) element.textContent = value;
     });
     editor.placeholder = copy().placeholder;
+    $('experience-chips').dataset.optionsSource = 'local';
+    renderExperiences(getExperienceOptions({ language: language.value, random }));
     updateEditor();
   }
   on(language, 'change', () => {
+    markInteraction();
     if (!LANGUAGES.includes(language.value)) language.value = 'en';
     translate();
     if (edited && editor.value.trim()) notify('languageKept');
@@ -111,6 +129,7 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   }
   on($('review-form'), 'submit', async event => {
     event.preventDefault();
+    markInteraction();
     if (copying) return;
     if (!editor.value.trim()) { notify('empty', 'error'); editor.focus(); return; }
     if (readyToLeave) { leaveReview(); return; }
@@ -141,7 +160,16 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   });
 
   translate();
-  const dispose = () => { disposed = true; listeners.forEach(remove => remove()); };
+  if (win.LanguageModel && language.value === 'en') {
+    Promise.resolve(generateOptions({ LanguageModel: win.LanguageModel, language: language.value, random, signal: optionController.signal }))
+      .then(result => {
+        if (!disposed && !interacted && result.usedAI && language.value === 'en') {
+          renderExperiences(result.options);
+          $('experience-chips').dataset.optionsSource = 'on-device-ai';
+        }
+      }).catch(() => { /* The immediate local choices remain usable. */ });
+  }
+  const dispose = () => { disposed = true; optionController.abort(); listeners.forEach(remove => remove()); };
   on(win, 'pagehide', event => { if (!event.persisted) dispose(); });
   return { dispose };
 }
