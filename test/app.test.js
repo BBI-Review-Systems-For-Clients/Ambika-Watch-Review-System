@@ -2,21 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Window } from 'happy-dom';
-import { initReviewApp } from '../app.js';
+import { initReviewApp, COPY } from '../app.js';
+import { LAST_REVIEW_KEY } from '../auto-review-generator.js';
+import { REVIEW_CATALOG } from '../review-catalog.js';
 import { ANDROID_MAPS_INTENT } from '../review-navigation.js';
-import { COPY } from '../i18n.js';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const googleURL = 'https://search.google.com/local/writereview?placeid=ChIJ4dkN_wJP4DsRaUIpMlm4KN8';
-const allowedBrands = [
-  'Casio', 'Timex', 'Tommy Hilfiger', 'Police', 'Kenneth Cole', 'Obaku',
-  'DKNY', 'Guess', 'Anne Klein', 'Lee Cooper', 'Daniel Wellington',
-  'Armani Exchange', 'Emporio Armani', 'Bering', 'Fossil', 'Michael Kors',
-  'Skagen', 'NAVIFORCE', 'REWARD', 'Valentine', 'Hislon', 'Titan',
-  'Fastrack', 'Sonata', 'Logues', 'Onex', 'Crony', 'Canon Quartz', 'Time Square',
-];
+const androidAgent = 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/143.0 Mobile Safari/537.36';
+const languageTags = { en: 'en', hi: 'hi-Latn', gu: 'gu-Latn' };
+const settle = () => new Promise(resolve => setImmediate(resolve));
 
-function fixture(t, { configure = () => {}, navigate, random = () => 0.5, generateOptions } = {}) {
+function fixture(t, { configure = () => {}, navigate, random = () => 0.5, storage } = {}) {
   const win = new Window({
     url: 'https://example.test/ambika-watch-review-system/',
     settings: {
@@ -29,152 +26,158 @@ function fixture(t, { configure = () => {}, navigate, random = () => 0.5, genera
   const doc = win.document;
   let networkRequests = 0;
   let popupRequests = 0;
+  let modelRequests = 0;
   win.fetch = () => { networkRequests++; throw new Error('Unexpected network request'); };
   win.open = () => { popupRequests++; throw new Error('Unexpected popup'); };
+  Object.defineProperty(win, 'LanguageModel', {
+    configurable: true,
+    get() { modelRequests++; throw new Error('Unexpected model access'); },
+  });
   doc.write(html);
   configure(win, doc);
   const destinations = [];
-  const app = initReviewApp(doc, win, { navigate: navigate || (url => destinations.push(url)), random, generateOptions });
+  const app = initReviewApp(doc, win, {
+    navigate: navigate || (url => destinations.push(url)), random, storage,
+  });
   t.after(async () => {
     app.dispose();
     await win.happyDOM.close();
-    assert.equal(networkRequests, 0, 'the page does not send customer text to a network endpoint');
+    assert.equal(networkRequests, 0, 'drafting and editing require no network request');
     assert.equal(popupRequests, 0, 'navigation does not require a popup');
+    assert.equal(modelRequests, 0, 'the automatic catalog does not access a language model');
   });
   const $ = id => doc.getElementById(id);
-  const choose = (id, value) => {
-    $(id).value = value;
-    $(id).dispatchEvent(new win.Event('change', { bubbles: true }));
-  };
   const type = value => {
     $('review-text').value = value;
     $('review-text').dispatchEvent(new win.Event('input', { bubbles: true }));
   };
-  const tap = experience => doc.querySelector(`[data-experience="${experience}"]`).click();
   const submit = () => $('review-form').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
-  return { win, doc, $, choose, type, tap, submit, destinations };
+  return { win, doc, $, app, type, submit, destinations };
 }
 
 function setClipboard(win, writeText) {
   Object.defineProperty(win.navigator, 'clipboard', { configurable: true, value: { writeText } });
 }
 
-const settle = () => new Promise(resolve => setImmediate(resolve));
+function setAndroid(win) {
+  Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: androidAgent });
+}
 
-test('the initial page has an editable neutral starter, one ready action, and collapsed optional personalization', t => {
-  const { doc, $, win } = fixture(t);
-  const initialReview = $('review-text').value;
-  assert.ok(initialReview.trim().split(/\s+/u).length >= 1);
-  assert.match(initialReview, /Ambika Watch & Gift/);
-  assert.doesNotMatch(initialReview, /\b(?:bought|purchased|best|excellent|amazing|recommend|helpful staff|fair prices|quick service)\b|five.star|[1-5][ -]stars?/i);
-  assert.equal($('review-text').readOnly, false);
-  assert.ok(Number.parseFloat($('review-text').style.height) > 0);
+function memoryStorage() {
+  const values = new Map();
+  const reads = [];
+  const writes = [];
+  return {
+    values, reads, writes,
+    getItem(key) { reads.push(key); return values.get(key) ?? null; },
+    setItem(key, value) { writes.push([key, String(value)]); values.set(key, String(value)); },
+  };
+}
+
+test('the page immediately loads one complete editable keyword draft with one action and no options', t => {
+  const { app, doc, $ } = fixture(t);
+  const editor = $('review-text');
+  assert.equal(editor.value, app.draft.text);
+  assert.ok(editor.value.trim().split(/\s+/u).length >= 10, 'the initial value is a full draft');
+  assert.match(editor.value, /Ambika Watch & Gift/);
+  assert.match(editor.value, /Surat/);
+  assert.ok(editor.value.includes(app.draft.area));
+  assert.ok(editor.value.includes(app.draft.keyword));
+  assert.ok(['women', 'men', 'clock'].includes(app.draft.category));
+  assert.ok(editor.value.length <= 1000);
+  assert.equal(editor.maxLength, 1000);
+  assert.equal(editor.readOnly, false);
+  assert.ok(Number.parseFloat(editor.style.height) > 0, 'the draft resizes on load');
   assert.equal($('copy-open').disabled, false);
-  assert.ok(Number.parseInt($('word-count').textContent, 10) >= 1);
-  assert.equal(doc.querySelectorAll('[data-experience][aria-pressed="true"]').length, 0);
-  assert.equal(doc.querySelectorAll('[name="rating"], [role="radio"], input[type="radio"]').length, 0);
-  assert.equal(doc.querySelectorAll('.primary-button').length, 1);
-  assert.equal(doc.querySelectorAll('button[type="submit"]').length, 1);
-  assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, .paste-help'), null);
-  assert.equal($('copy-open').textContent.trim(), COPY.en.copyOpen);
-  assert.equal($('personalize-review').open, false);
-  assert.equal($('personalize-review').tagName, 'DETAILS');
-  assert.ok($('review-text').compareDocumentPosition($('personalize-review')) & win.Node.DOCUMENT_POSITION_FOLLOWING);
-  for (const control of doc.querySelectorAll('[data-experience], #product, #brand')) {
-    assert.equal(control.closest('details'), $('personalize-review'));
+  assert.equal($('copy-open').textContent.trim(), 'Copy & Leave Review');
+  assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
+  assert.equal(doc.querySelectorAll('.primary-button, button[type="submit"]').length, 1);
+  assert.equal(doc.querySelectorAll('button').length, 1);
+  assert.equal(doc.querySelector('select, option, details, [data-experience], [name="rating"], [role="radio"], input[type="radio"]'), null);
+  assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, #personalize-review, #language, #product, #brand, .paste-help'), null);
+  assert.doesNotMatch(doc.body.textContent, /real.time AI|on.device AI|polish review|refresh draft|personalize your review/i);
+});
+
+test('catalog language metadata changes draft tags while the interface remains English', t => {
+  for (const language of ['en', 'hi', 'gu']) {
+    const index = REVIEW_CATALOG.findIndex(draft => draft.language === language);
+    assert.ok(index >= 0);
+    const { app, doc, $ } = fixture(t, { random: () => (index + 0.5) / REVIEW_CATALOG.length });
+    assert.equal(app.draft.language, language);
+    assert.equal($('review-text').lang, languageTags[language]);
+    assert.equal(doc.documentElement.lang, languageTags[language]);
+    assert.equal($('copy-open').textContent.trim(), 'Copy & Leave Review');
+    assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
+    assert.doesNotMatch($('review-text').value, /[\u0900-\u097f\u0a80-\u0aff]/u);
+    assert.equal($('review-text').value, app.draft.text);
+    assert.ok($('review-text').value.includes(app.draft.area));
+    assert.ok($('review-text').value.includes(app.draft.keyword));
   }
 });
 
-test('customer choices create a short editable draft with exactly the supplied brand names', t => {
-  const { doc, $, choose, tap } = fixture(t);
-  assert.deepEqual([...$('brand').options].map(option => option.value), ['', ...allowedBrands]);
-  tap('selection');
-  tap('staff');
-  choose('product', 'women');
-  choose('brand', 'Titan');
-  assert.equal(doc.querySelector('[data-experience="selection"]').getAttribute('aria-pressed'), 'true');
-  assert.match($('review-text').value, /Titan/);
-  assert.match($('review-text').value, /Ambika Watch & Gift/);
-  assert.match($('review-text').value, /Surat/);
-  assert.match($('review-text').value, /women|ladies/i);
-  assert.match($('review-text').value, /watch/i);
-  assert.match($('review-text').value, /selection|collection|range|variety/i);
-  assert.match($('review-text').value, /staff|team/i);
-  assert.doesNotMatch($('review-text').value, /bought|purchased|five.star|best/i);
-  assert.ok($('review-text').value.split(/\s+/u).length <= 60);
-  assert.equal($('review-text').readOnly, false);
-  assert.equal($('copy-open').disabled, false);
-  tap('staff');
-  assert.doesNotMatch($('review-text').value, /staff|team/i);
+test('refreshing within one session avoids the previous draft even with fixed randomness', t => {
+  const storage = memoryStorage();
+  const first = fixture(t, { random: () => 0, storage });
+  const second = fixture(t, { random: () => 0, storage });
+  assert.notEqual(second.app.draft.id, first.app.draft.id);
+  assert.notEqual(second.$('review-text').value, first.$('review-text').value);
+  assert.deepEqual(storage.reads, [LAST_REVIEW_KEY, LAST_REVIEW_KEY]);
+  assert.deepEqual(storage.writes, [
+    [LAST_REVIEW_KEY, first.app.draft.id],
+    [LAST_REVIEW_KEY, second.app.draft.id],
+  ]);
 });
 
-test('returning to the exact same selected facts produces a different full review before manual editing', t => {
-  const { doc, $, tap } = fixture(t);
-  tap('staff');
-  const firstStaffReview = $('review-text').value;
-  tap('selection');
-  tap('selection');
-  const nextStaffReview = $('review-text').value;
-  assert.deepEqual([...doc.querySelectorAll('[data-experience][aria-pressed="true"]')].map(chip => chip.dataset.experience), ['staff']);
-  assert.match(firstStaffReview, /staff|team/i);
-  assert.match(nextStaffReview, /staff|team/i);
-  assert.notEqual(nextStaffReview, firstStaffReview);
-  assert.doesNotMatch(nextStaffReview, /bought|purchased|five.star/i);
-});
-
-test('critical feedback can copy and leave through the same Google review destination', async t => {
-  const copied = [];
-  const { $, tap, submit, destinations } = fixture(t, {
-    configure: win => setClipboard(win, async text => copied.push(text)),
+test('the default session storage keeps only the opaque catalog ID and never stores customer words', async t => {
+  const session = memoryStorage();
+  const { app, $, type, submit } = fixture(t, {
+    configure: win => {
+      Object.defineProperty(win, 'sessionStorage', { configurable: true, value: session });
+      Object.defineProperty(win, 'localStorage', {
+        configurable: true,
+        get() { assert.fail('local storage must not be accessed'); },
+      });
+      setClipboard(win, async () => {});
+    },
   });
-  tap('improve');
-  const review = $('review-text').value;
-  assert.match(review, /improv|better/i);
-  assert.equal($('copy-open').disabled, false);
+  assert.deepEqual(session.reads, [LAST_REVIEW_KEY]);
+  assert.deepEqual(session.writes, [[LAST_REVIEW_KEY, app.draft.id]]);
+  assert.match(app.draft.id, /^[A-Za-z0-9._:-]+$/u);
+  assert.ok(app.draft.id.length < 100);
+  type('My personal visit details and a phone number 98765 43210.');
   submit();
   await settle();
-  assert.deepEqual(copied, [review]);
-  assert.deepEqual(destinations, [googleURL]);
-  assert.equal($('status').textContent, COPY.en.copied);
+  assert.deepEqual(session.writes, [[LAST_REVIEW_KEY, app.draft.id]]);
+  assert.equal(session.values.size, 1);
+  assert.notEqual(session.values.get(LAST_REVIEW_KEY), $('review-text').value);
 });
 
-test('manual wording survives changes to chips, watch details, and language', t => {
-  const { $, type, tap, choose, doc } = fixture(t);
-  const ownWords = 'The strap was uncomfortable.\nI did not buy the watch.';
-  type(ownWords);
-  tap('staff');
-  choose('product', 'men');
-  choose('brand', 'Casio');
-  assert.equal($('review-text').value, ownWords);
-  assert.equal($('status').textContent, COPY.en.kept);
-  choose('language', 'gu');
-  assert.equal(doc.documentElement.lang, 'gu-Latn');
-  assert.equal($('page-title').textContent, COPY.gu.heading);
-  assert.equal($('review-text').value, ownWords);
-  assert.equal($('status').textContent, COPY.gu.languageKept);
-  assert.equal($('copy-open').disabled, false);
-});
-
-test('Hindi and Gujarati use Roman text and the matching language tags without altering selected facts', t => {
-  const { doc, $, choose, tap } = fixture(t);
-  tap('staff');
-  choose('brand', 'Titan');
-  for (const language of ['hi', 'gu']) {
-    choose('language', language);
-    assert.equal(doc.documentElement.lang, `${language}-Latn`);
-    assert.match($('review-text').value, /Ambika Watch & Gift/);
-    assert.match($('review-text').value, /Titan/);
-    assert.doesNotMatch($('review-text').value, /[\u0900-\u097f\u0a80-\u0aff]/u);
-    assert.doesNotMatch($('page-title').textContent, /[\u0900-\u097f\u0a80-\u0aff]/u);
-    assert.equal(doc.querySelector('[data-experience="staff"]').getAttribute('aria-pressed'), 'true');
-    assert.ok(Number.parseFloat($('review-text').style.height) > 0);
+test('blocked storage access, reads and writes cannot prevent a ready editable draft', t => {
+  const configurations = [
+    win => Object.defineProperty(win, 'sessionStorage', { configurable: true, get() { throw new Error('Storage blocked'); } }),
+    win => Object.defineProperty(win, 'sessionStorage', { configurable: true, value: {
+      getItem() { throw new Error('Read blocked'); },
+      setItem() { throw new Error('Write blocked'); },
+    } }),
+    win => Object.defineProperty(win, 'sessionStorage', { configurable: true, value: {
+      getItem() { return 'old-id'; },
+      setItem() { throw new Error('Quota exceeded'); },
+    } }),
+  ];
+  for (const configure of configurations) {
+    const { $, type } = fixture(t, { configure });
+    assert.ok($('review-text').value.trim());
+    assert.equal($('copy-open').disabled, false);
+    assert.equal($('review-text').readOnly, false);
+    type('My own words.');
+    assert.equal($('review-text').value, 'My own words.');
   }
 });
 
-test('copy finishes before navigation; repeated clicks cannot copy or navigate twice while pending', async t => {
+test('copy finishes before navigation and duplicate submits are ignored while copying', async t => {
   const events = [];
   let finishCopy;
-  const { $, type, submit, doc } = fixture(t, {
+  const { $, type, submit } = fixture(t, {
     configure: win => setClipboard(win, text => {
       events.push(['copy', text]);
       return new Promise(resolve => { finishCopy = resolve; });
@@ -186,25 +189,24 @@ test('copy finishes before navigation; repeated clicks cannot copy or navigate t
   submit();
   assert.deepEqual(events, [['copy', 'Helpful staff and a good watch collection.']]);
   assert.equal($('copy-open').disabled, true);
-  assert.equal($('copy-open').textContent.trim(), COPY.en.busy);
+  assert.equal($('copy-open').textContent.trim(), COPY.busy);
   assert.equal($('review-text').readOnly, true);
-  for (const control of doc.querySelectorAll('select, [data-experience]')) {
-    assert.equal(control.disabled, true, `${control.id || control.dataset.experience} must stay fixed while copying`);
-  }
   finishCopy();
   await settle();
   assert.deepEqual(events, [
     ['copy', 'Helpful staff and a good watch collection.'],
     ['navigate', googleURL],
   ]);
+  assert.equal($('review-text').value, '  Helpful staff and a good watch collection.  ');
   assert.equal($('copy-open').disabled, false);
-  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
   assert.equal($('review-text').readOnly, false);
-  for (const control of doc.querySelectorAll('select, [data-experience]')) assert.equal(control.disabled, false);
+  assert.equal($('status').textContent, COPY.copied);
 });
 
-test('clipboard permission rejection can use selected-text copy before navigation', async t => {
+test('clipboard rejection copies trimmed text and restores the editor value and customer selection', async t => {
   let legacyCopies = 0;
+  const selectedCopies = [];
   const { $, type, submit, destinations } = fixture(t, {
     configure: (win, doc) => {
       setClipboard(win, async () => { throw new Error('Permission denied'); });
@@ -212,24 +214,43 @@ test('clipboard permission rejection can use selected-text copy before navigatio
         legacyCopies++;
         assert.equal(command, 'copy');
         assert.equal(doc.activeElement.id, 'review-text');
-        assert.equal($('review-text').selectionStart, 0);
-        assert.equal($('review-text').selectionEnd, $('review-text').value.length);
+        const editor = $('review-text');
+        assert.equal(editor.selectionStart, editor.value.length - editor.value.trimStart().length);
+        assert.equal(editor.selectionEnd, editor.value.trimEnd().length);
+        selectedCopies.push(editor.value.slice(editor.selectionStart, editor.selectionEnd));
         return true;
       };
     },
   });
-  type('I explored wall clocks.');
+  const manualText = '  \nI explored wall clocks. \n ';
+  type(manualText);
   $('review-text').setSelectionRange(2, 7);
   submit();
   await settle();
   assert.equal(legacyCopies, 1);
+  assert.deepEqual(selectedCopies, ['I explored wall clocks.']);
+  assert.equal($('review-text').value, manualText);
   assert.equal($('review-text').selectionStart, 2);
   assert.equal($('review-text').selectionEnd, 7);
   assert.deepEqual(destinations, [googleURL]);
-  assert.equal($('status').textContent, COPY.en.copied);
+  assert.equal($('status').textContent, COPY.copied);
 });
 
-test('failed copy selects the review and reuses the same button to leave without another clipboard request', async t => {
+test('without Clipboard API support selected-text copy can still leave for Google', async t => {
+  let legacyCopies = 0;
+  const { submit, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      Object.defineProperty(win.navigator, 'clipboard', { configurable: true, value: undefined });
+      doc.execCommand = command => { legacyCopies++; assert.equal(command, 'copy'); return true; };
+    },
+  });
+  submit();
+  await settle();
+  assert.equal(legacyCopies, 1);
+  assert.deepEqual(destinations, [googleURL]);
+});
+
+test('failed copy selects the review and the same button leaves without another clipboard request', async t => {
   let copyRequests = 0;
   let legacyCopies = 0;
   const { $, type, submit, doc, destinations } = fixture(t, {
@@ -245,14 +266,14 @@ test('failed copy selects the review and reuses the same button to leave without
   assert.equal(copyRequests, 1);
   assert.equal(legacyCopies, 1);
   assert.deepEqual(destinations, []);
-  assert.equal($('status').textContent, COPY.en.copyFailed);
+  assert.equal($('status').textContent, COPY.copyFailed);
   assert.equal($('status').dataset.tone, 'error');
   assert.equal(doc.activeElement, $('review-text'));
   assert.equal($('review-text').selectionStart, 0);
   assert.equal($('review-text').selectionEnd, $('review-text').value.length);
   assert.equal($('copy-open'), button);
   assert.equal(button.disabled, false);
-  assert.equal(button.textContent.trim(), COPY.en.leaveReview);
+  assert.equal(button.textContent.trim(), COPY.leaveReview);
   submit();
   await settle();
   assert.equal(copyRequests, 1);
@@ -276,9 +297,9 @@ test('a navigation error preserves the review and supports retry without copying
   submit();
   await settle();
   assert.equal($('review-text').value, 'I only browsed Casio watches.');
-  assert.equal($('status').textContent, COPY.en.openFailed);
+  assert.equal($('status').textContent, COPY.openFailed);
   assert.equal($('status').dataset.tone, 'error');
-  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
   submit();
   await settle();
   assert.equal(copyRequests, 1);
@@ -286,7 +307,7 @@ test('a navigation error preserves the review and supports retry without copying
   assert.deepEqual(destinations, [googleURL]);
 });
 
-test('editing a previously copied review resets the button and copies the new words before leaving', async t => {
+test('editing resets readiness, keeps exact customer words, and disables the action for blank text', async t => {
   const copied = [];
   const { $, type, submit, destinations } = fixture(t, {
     configure: win => setClipboard(win, async text => copied.push(text)),
@@ -294,22 +315,30 @@ test('editing a previously copied review resets the button and copies the new wo
   type('The staff helped.');
   submit();
   await settle();
-  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
-  type('I changed my mind: the service was slow.');
-  assert.equal($('copy-open').textContent.trim(), COPY.en.copyOpen);
+  assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
+  const edited = '  My own words.\nThe service was slow.  ';
+  type(edited);
+  assert.equal($('review-text').value, edited);
+  assert.equal($('copy-open').textContent.trim(), COPY.copyOpen);
+  assert.ok(Number.parseFloat($('review-text').style.height) > 0);
   submit();
   await settle();
-  assert.deepEqual(copied, ['The staff helped.', 'I changed my mind: the service was slow.']);
+  assert.deepEqual(copied, ['The staff helped.', edited.trim()]);
   assert.deepEqual(destinations, [googleURL, googleURL]);
-  type('   ');
+  type('  \n  ');
   assert.equal($('copy-open').disabled, true);
+  submit();
+  await settle();
+  assert.equal($('status').textContent, COPY.empty);
+  assert.equal(copied.length, 2);
+  assert.equal(destinations.length, 2);
 });
 
-test('Android uses the Maps intent only after the customer review has been copied', async t => {
+test('Android async copying finishes before the Maps intent opens', async t => {
   const copied = [];
   const { type, submit, destinations } = fixture(t, {
     configure: win => {
-      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/143.0 Mobile Safari/537.36' });
+      setAndroid(win);
       setClipboard(win, async text => copied.push(text));
     },
   });
@@ -321,12 +350,12 @@ test('Android uses the Maps intent only after the customer review has been copie
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
 });
 
-test('Android synchronous copy opens Maps during the original tap without requesting the Clipboard API', t => {
+test('Android synchronous copying opens Maps during the original tap without Clipboard API access', t => {
   let clipboardRequests = 0;
   const events = [];
   const { $, type, submit } = fixture(t, {
     configure: (win, doc) => {
-      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      setAndroid(win);
       setClipboard(win, async () => { clipboardRequests++; });
       doc.execCommand = command => {
         assert.equal(command, 'copy');
@@ -337,25 +366,26 @@ test('Android synchronous copy opens Maps during the original tap without reques
     },
     navigate: url => events.push(['navigate', url]),
   });
-  type('I explored the watch collection.');
+  const manualText = '  I explored the watch collection.\n ';
+  type(manualText);
   submit();
-  // No promise or timer needs to settle before the app intent is attempted.
   assert.deepEqual(events, [
     ['copy', 'I explored the watch collection.'],
     ['navigate', ANDROID_MAPS_INTENT],
   ]);
   assert.equal(clipboardRequests, 0);
+  assert.equal($('review-text').value, manualText);
   assert.equal($('copy-open').disabled, false);
   assert.equal($('review-text').readOnly, false);
 });
 
-test('expired Android activation after async copy waits for a second tap without recopying', async t => {
+test('expired Android activation after async copying waits for another tap without recopying', async t => {
   const activation = { isActive: true };
   let finishCopy;
   let clipboardRequests = 0;
   const { $, type, submit, destinations } = fixture(t, {
     configure: (win, doc) => {
-      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      setAndroid(win);
       Object.defineProperty(win.navigator, 'userActivation', { configurable: true, value: activation });
       doc.execCommand = () => false;
       setClipboard(win, () => {
@@ -371,8 +401,8 @@ test('expired Android activation after async copy waits for a second tap without
   await settle();
   assert.equal(clipboardRequests, 1);
   assert.deepEqual(destinations, []);
-  assert.equal($('status').textContent, COPY.en.openFailed);
-  assert.equal($('copy-open').textContent.trim(), COPY.en.leaveReview);
+  assert.equal($('status').textContent, COPY.openFailed);
+  assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
   assert.equal($('copy-open').disabled, false);
   activation.isActive = true;
   submit();
@@ -380,12 +410,12 @@ test('expired Android activation after async copy waits for a second tap without
   assert.equal(clipboardRequests, 1);
 });
 
-test('an ignored Android app launch lets the same button open the HTTPS review form on the next tap', t => {
+test('an ignored Android launch lets the same button open HTTPS on the next tap', t => {
   let clipboardRequests = 0;
   let synchronousCopies = 0;
   const { $, type, submit, destinations } = fixture(t, {
     configure: (win, doc) => {
-      Object.defineProperty(win.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 15) Chrome/143.0' });
+      setAndroid(win);
       doc.execCommand = () => { synchronousCopies++; return true; };
       setClipboard(win, async () => { clipboardRequests++; });
     },
@@ -393,9 +423,8 @@ test('an ignored Android app launch lets the same button open the HTTPS review f
   type('I browsed watches for gifting.');
   const button = $('copy-open');
   submit();
-  // The navigation stub accepts the intent but does not leave this page.
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
-  assert.equal(button.textContent.trim(), COPY.en.leaveReview);
+  assert.equal(button.textContent.trim(), COPY.leaveReview);
   submit();
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT, googleURL]);
   assert.equal($('copy-open'), button);
@@ -404,22 +433,40 @@ test('an ignored Android app launch lets the same button open the HTTPS review f
   assert.equal($('review-text').value, 'I browsed watches for gifting.');
 });
 
-test('a persisted pagehide keeps the restored page interactive and able to copy a new review', async t => {
+test('a refused Android intent keeps the HTTPS fallback ready without another copy', t => {
+  const attempts = [];
+  let copies = 0;
+  const { $, submit } = fixture(t, {
+    configure: (win, doc) => {
+      setAndroid(win);
+      doc.execCommand = () => { copies++; return true; };
+    },
+    navigate: url => {
+      attempts.push(url);
+      if (url === ANDROID_MAPS_INTENT) throw new Error('Intent refused');
+    },
+  });
+  submit();
+  assert.equal($('status').textContent, COPY.openFailed);
+  assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
+  submit();
+  assert.deepEqual(attempts, [ANDROID_MAPS_INTENT, googleURL]);
+  assert.equal(copies, 1);
+});
+
+test('a persisted pagehide keeps handlers and manual edits usable after restoring the page', async t => {
   const copied = [];
-  const { $, win, doc, tap, choose, type, submit, destinations } = fixture(t, {
+  const { $, win, type, submit, destinations } = fixture(t, {
     configure: win => setClipboard(win, async text => copied.push(text)),
   });
-  tap('staff');
   const firstReview = $('review-text').value;
   submit();
   await settle();
   const pagehide = new win.Event('pagehide');
   Object.defineProperty(pagehide, 'persisted', { value: true });
   win.dispatchEvent(pagehide);
-  choose('language', 'hi');
-  assert.equal(doc.documentElement.lang, 'hi-Latn');
   type('The service could be quicker.');
-  assert.equal($('copy-open').textContent.trim(), COPY.hi.copyOpen);
+  assert.equal($('copy-open').textContent.trim(), COPY.copyOpen);
   submit();
   await settle();
   assert.deepEqual(copied, [firstReview, 'The service could be quicker.']);
@@ -427,91 +474,34 @@ test('a persisted pagehide keeps the restored page interactive and able to copy 
   assert.equal($('copy-open').disabled, false);
 });
 
-const mockedAIOptions = [
-  { id: 'improve', label: 'Could be better' },
-  { id: 'mixed', label: 'Mixed experience' },
-  { id: 'quick', label: 'Quick service' },
-  { id: 'value', label: 'Fair prices' },
-  { id: 'staff', label: 'Helpful staff' },
-  { id: 'selection', label: 'Good collection' },
-];
-
-function chipSnapshot(doc) {
-  return [...doc.querySelectorAll('[data-experience]')].map(chip => ({
-    id: chip.dataset.experience,
-    label: chip.textContent,
-    pressed: chip.getAttribute('aria-pressed'),
-  }));
-}
-
-test('a browser without an on-device model immediately offers all six experiences without requesting AI', async t => {
-  let modelRequests = 0;
-  const { doc, $, tap } = fixture(t, {
-    generateOptions: async () => { modelRequests++; return { usedAI: true, options: mockedAIOptions }; },
+test('disposing a page while copying prevents pending navigation and removes the submit handler', async t => {
+  let finishCopy;
+  let requests = 0;
+  const { app, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, () => {
+      requests++;
+      return new Promise(resolve => { finishCopy = resolve; });
+    }),
   });
+  submit();
+  app.dispose();
+  finishCopy();
   await settle();
-  const chips = chipSnapshot(doc);
-  assert.equal(modelRequests, 0);
-  assert.deepEqual(chips.map(chip => chip.id).sort(), ['improve', 'mixed', 'quick', 'selection', 'staff', 'value']);
-  assert.ok(chips.every(chip => chip.label.trim() && chip.pressed === 'false'));
-  assert.equal($('experience-chips').dataset.optionsSource, 'local');
-  tap('mixed');
-  tap('improve');
-  assert.match($('review-text').value, /mixed/i);
-  assert.match($('review-text').value, /improv|better/i);
+  assert.deepEqual(destinations, []);
+  submit();
+  await settle();
+  assert.equal(requests, 1);
+  assert.deepEqual(destinations, []);
 });
 
-test('a valid early on-device option result updates chip labels and order before any customer interaction', async t => {
-  const model = {};
-  let modelRequests = 0;
-  const { doc, $, tap } = fixture(t, {
-    configure: win => { win.LanguageModel = model; },
-    generateOptions: async ({ LanguageModel, language, random, signal }) => {
-      modelRequests++;
-      assert.equal(LanguageModel, model);
-      assert.equal(language, 'en');
-      assert.equal(random(), 0.5);
-      assert.equal(signal.aborted, false);
-      return { usedAI: true, options: mockedAIOptions };
-    },
+test('a nonpersisted pagehide prevents pending clipboard completion from navigating', async t => {
+  let finishCopy;
+  const { win, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, () => new Promise(resolve => { finishCopy = resolve; })),
   });
+  submit();
+  win.dispatchEvent(new win.Event('pagehide'));
+  finishCopy();
   await settle();
-  assert.equal(modelRequests, 1);
-  assert.deepEqual(chipSnapshot(doc), mockedAIOptions.map(option => ({ ...option, pressed: 'false' })));
-  assert.equal($('experience-chips').dataset.optionsSource, 'on-device-ai');
-  assert.ok($('review-text').value.trim());
-  assert.equal($('review-text').readOnly, false);
-  assert.doesNotMatch($('review-text').value, /bought|purchased|excellent|five.star/i);
-  assert.equal($('copy-open').disabled, false);
-  tap('mixed');
-  assert.match($('review-text').value, /mixed/i);
-  assert.equal(doc.querySelector('[data-experience="mixed"]').getAttribute('aria-pressed'), 'true');
-});
-
-test('a delayed model result cannot replace chips, selections, or manual words after customer interaction', async t => {
-  let completeOptions;
-  let modelSignal;
-  const { doc, $, tap, type, choose } = fixture(t, {
-    configure: win => { win.LanguageModel = {}; },
-    generateOptions: ({ signal }) => {
-      modelSignal = signal;
-      return new Promise(resolve => { completeOptions = resolve; });
-    },
-  });
-  assert.equal(modelSignal.aborted, false);
-  tap('staff');
-  tap('mixed');
-  type('The staff helped, but I did not find a comfortable strap.');
-  choose('language', 'gu');
-  assert.equal(modelSignal.aborted, true);
-  const beforeResult = chipSnapshot(doc);
-  const originalNodes = [...doc.querySelectorAll('[data-experience]')];
-  completeOptions({ usedAI: true, options: mockedAIOptions });
-  await settle();
-  assert.deepEqual(chipSnapshot(doc), beforeResult);
-  assert.deepEqual([...doc.querySelectorAll('[data-experience]')], originalNodes);
-  assert.deepEqual(beforeResult.filter(chip => chip.pressed === 'true').map(chip => chip.id).sort(), ['mixed', 'staff']);
-  assert.equal($('review-text').value, 'The staff helped, but I did not find a comfortable strap.');
-  assert.equal(doc.documentElement.lang, 'gu-Latn');
-  assert.equal($('experience-chips').dataset.optionsSource, 'local');
+  assert.deepEqual(destinations, []);
 });

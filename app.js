@@ -1,114 +1,70 @@
-import { BRAND_NAMES, GOOGLE_REVIEW_URL, LANGUAGES } from './review-core.js';
+import { GOOGLE_REVIEW_URL } from './review-core.js';
 import { ANDROID_MAPS_INTENT, getReviewDestination } from './review-navigation.js';
-import { COPY } from './i18n.js';
-import { getExperienceOptions, getOnDeviceExperienceOptions } from './experience-options.js';
-import { createReviewGenerator } from './review-generator.js';
+import { createAutomaticReviewGenerator, LAST_REVIEW_KEY } from './auto-review-generator.js';
 
-export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url), random = Math.random, generateOptions = getOnDeviceExperienceOptions } = {}) {
+export { LAST_REVIEW_KEY };
+export const COPY = Object.freeze({
+  copyOpen: 'Copy & Leave Review',
+  leaveReview: 'Leave Review',
+  copied: 'Review copied.',
+  empty: 'Write a few words before continuing.',
+  busy: 'Copying…',
+  copyFailed: 'Copy the selected text, then tap Leave Review.',
+  openFailed: 'Could not open Google. Tap Leave Review to try again.',
+});
+
+export function initReviewApp(doc = document, win = window, { navigate = url => win.location.assign(url), random = Math.random, storage } = {}) {
   const $ = id => doc.getElementById(id);
   const editor = $('review-text');
-  const language = $('language');
-  const product = $('product');
-  const brand = $('brand');
   const submit = $('copy-open');
-  const selected = new Set();
-  const generator = createReviewGenerator({ random });
-  let edited = false;
+  const generator = createAutomaticReviewGenerator({ random });
+  // Store an opaque catalog ID only, never the draft or the customer's edits.
+  if (storage === undefined) {
+    try { storage = win.sessionStorage; } catch { storage = null; }
+  }
+  let previousId;
+  try { previousId = storage?.getItem(LAST_REVIEW_KEY); } catch { /* Storage can be blocked. */ }
+  const draft = generator.generate({ previousId });
+  try { storage?.setItem(LAST_REVIEW_KEY, draft.id); } catch { /* Drafts work without storage. */ }
+  editor.value = draft.text;
+  editor.lang = draft.language === 'en' ? 'en' : `${draft.language}-Latn`;
+  doc.documentElement.lang = editor.lang;
   let copying = false;
   let readyToLeave = false;
   let nextDestination = getReviewDestination(win.navigator);
   let disposed = false;
-  let interacted = false;
-  const optionController = new AbortController();
   const listeners = [];
   const on = (element, event, handler) => {
     element.addEventListener(event, handler);
     listeners.push(() => element.removeEventListener(event, handler));
   };
-  const copy = () => COPY[language.value] || COPY.en;
   const notify = (key, tone = '') => {
-    $('status').textContent = key ? copy()[key] : '';
+    $('status').textContent = key ? COPY[key] : '';
     $('status').dataset.tone = tone;
   };
   const updateEditor = () => {
     submit.disabled = copying || !editor.value.trim();
     editor.readOnly = copying;
-    doc.querySelectorAll('select, [data-experience]').forEach(control => { control.disabled = copying; });
-    submit.querySelector('span').textContent = copying ? copy().busy : readyToLeave ? copy().leaveReview : copy().copyOpen;
-    const words = editor.value.trim().split(/\s+/u).filter(Boolean).length;
-    $('word-count').textContent = `${words} ${copy().words}`;
-  };
-  const refresh = () => {
-    editor.value = generator.generate({ language: language.value, experiences: [...selected], product: product.value, brand: brand.value });
-    resizeEditor();
-    edited = false;
-    readyToLeave = false;
-    nextDestination = getReviewDestination(win.navigator);
-    notify('');
-    updateEditor();
+    submit.querySelector('span').textContent = copying ? COPY.busy : readyToLeave ? COPY.leaveReview : COPY.copyOpen;
   };
   const resizeEditor = () => {
     editor.style.height = 'auto';
     editor.style.height = `${Math.max(124, editor.scrollHeight)}px`;
   };
-  const changeChoices = () => {
-    if (edited && editor.value.trim()) notify('kept');
-    else refresh();
-  };
-  const markInteraction = () => { interacted = true; optionController.abort(); };
-  const renderExperiences = options => {
-    const container = $('experience-chips');
-    for (const option of options) {
-      const chip = container.querySelector(`[data-experience="${option.id}"]`);
-      if (chip) { chip.textContent = option.label; container.append(chip); }
-    }
-  };
-  on($('review-form'), 'pointerdown', markInteraction);
-  on($('review-form'), 'keydown', markInteraction);
-
-  for (const name of BRAND_NAMES) {
-    const option = doc.createElement('option');
-    option.value = name;
-    option.textContent = name;
-    brand.append(option);
-  }
-  for (const chip of doc.querySelectorAll('[data-experience]')) {
-    on(chip, 'click', () => {
-      markInteraction();
-      const id = chip.dataset.experience;
-      if (selected.has(id)) selected.delete(id); else selected.add(id);
-      chip.setAttribute('aria-pressed', String(selected.has(id)));
-      changeChoices();
-    });
-  }
-  on(editor, 'focus', markInteraction);
-  on(editor, 'input', () => { markInteraction(); edited = true; readyToLeave = false; nextDestination = getReviewDestination(win.navigator); resizeEditor(); updateEditor(); notify(''); });
-  on(product, 'change', () => { markInteraction(); changeChoices(); });
-  on(brand, 'change', () => { markInteraction(); changeChoices(); });
-  function translate() {
-    doc.documentElement.lang = language.value === 'en' ? 'en' : `${language.value}-Latn`;
-    doc.querySelectorAll('[data-i18n]').forEach(element => {
-      const value = copy()[element.dataset.i18n];
-      if (value) element.textContent = value;
-    });
-    editor.placeholder = copy().placeholder;
-    $('experience-chips').dataset.optionsSource = 'local';
-    renderExperiences(getExperienceOptions({ language: language.value, random }));
+  on(editor, 'input', () => {
+    readyToLeave = false;
+    nextDestination = getReviewDestination(win.navigator);
+    resizeEditor();
     updateEditor();
-  }
-  on(language, 'change', () => {
-    markInteraction();
-    if (!LANGUAGES.includes(language.value)) language.value = 'en';
-    translate();
-    if (edited && editor.value.trim()) notify('languageKept');
-    else refresh();
+    notify('');
   });
 
   function legacyCopy() {
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
     editor.focus();
-    editor.select();
+    const left = editor.value.length - editor.value.trimStart().length;
+    editor.setSelectionRange(left, editor.value.trimEnd().length);
     const success = typeof doc.execCommand === 'function' && doc.execCommand('copy');
     if (success) editor.setSelectionRange(start, end);
     return Boolean(success);
@@ -136,14 +92,11 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
   }
   on($('review-form'), 'submit', async event => {
     event.preventDefault();
-    markInteraction();
     if (copying) return;
     if (!editor.value.trim()) { notify('empty', 'error'); editor.focus(); return; }
     if (readyToLeave) { leaveReview(); return; }
     const text = editor.value.trim();
     copying = true;
-    // Keep the visible and copied draft consistent while the clipboard is pending.
-    editor.readOnly = true;
     updateEditor();
     const android = nextDestination === ANDROID_MAPS_INTENT;
     let copied = false;
@@ -152,7 +105,6 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     const copiedDuringClick = copied;
     if (!copied) copied = await clipboardWrite(text);
     copying = false;
-    editor.readOnly = false;
     readyToLeave = true;
     if (disposed) { updateEditor(); return; }
     if (!copied) {
@@ -165,21 +117,11 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     }
     updateEditor();
   });
-
-  translate();
-  refresh();
-  if (win.LanguageModel && language.value === 'en') {
-    Promise.resolve(generateOptions({ LanguageModel: win.LanguageModel, language: language.value, random, signal: optionController.signal }))
-      .then(result => {
-        if (!disposed && !interacted && result.usedAI && language.value === 'en') {
-          renderExperiences(result.options);
-          $('experience-chips').dataset.optionsSource = 'on-device-ai';
-        }
-      }).catch(() => { /* The immediate local choices remain usable. */ });
-  }
-  const dispose = () => { disposed = true; optionController.abort(); listeners.forEach(remove => remove()); };
+  resizeEditor();
+  updateEditor();
+  const dispose = () => { disposed = true; listeners.forEach(remove => remove()); };
   on(win, 'pagehide', event => { if (!event.persisted) dispose(); });
-  return { dispose };
+  return { dispose, draft };
 }
 
 if (typeof document !== 'undefined' && document.getElementById('review-form')) initReviewApp();
