@@ -82,6 +82,9 @@ test('the page immediately loads one complete editable keyword draft with one ac
   assert.match(editor.value, /Ambika Watch & Gift/);
   assert.match(editor.value, /Surat/);
   assert.ok(editor.value.includes(app.draft.keyword));
+  assert.ok(editor.value.includes(app.draft.area));
+  assert.ok(editor.value.includes(app.draft.brand));
+  assert.equal(editor.value.match(/[.!?]/g)?.length, 1);
   assert.ok(['women', 'men', 'clock'].includes(app.draft.category));
   assert.ok(editor.value.length <= 1000);
   assert.equal(editor.maxLength, 1000);
@@ -92,7 +95,6 @@ test('the page immediately loads one complete editable keyword draft with one ac
   assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
   for (const area of ['Varachha', 'Mota Varachha', 'Katargam', 'Amroli']) {
     assert.ok(doc.querySelector('footer').textContent.includes(area));
-    assert.ok(!editor.value.includes(area), 'serving areas stay outside the customer draft');
   }
   assert.equal(doc.querySelectorAll('.primary-button, button[type="submit"]').length, 1);
   assert.equal(doc.querySelectorAll('button').length, 1);

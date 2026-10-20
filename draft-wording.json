@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-20T03:44:56.559994+00:00",
+  "templates": {
+    "en": [
+      "For {area} shoppers looking at {brand} {topic}, {business} is a watch shop in {city}.",
+      "{business} is a watch shop in {city} for {area} shoppers interested in {brand} {topic}.",
+      "{area} shoppers considering {brand} {topic} have {business}, a watch shop in {city}, as an option.",
+      "When {brand} {topic} are on the list for {area} shoppers, {business} is a watch shop in {city}.",
+      "With {brand} {topic} in mind, {area} shoppers can consider {business}, a watch shop in {city}.",
+      "{business}, a watch shop in {city}, is an option for {area} shoppers looking into {brand} {topic}.",
+      "For shoppers from {area} interested in {brand} {topic}, {business} is a watch shop in {city}.",
+      "For {area} shoppers comparing {brand} {topic}, {business} is one watch shop in {city}."
+    ],
+    "hi": [
+      "{area} se {brand} {topic} dekh rahe logon ke liye {business}, {city} ki ek watch shop hai.",
+      "{brand} {topic} mein dilchaspi rakhne wale {area} ke logon ke liye {business}, {city} ki watch shop ka ek option hai.",
+      "{business}, {city} ki watch shop, {area} se {brand} {topic} dekhne walon ke liye ek option hai.",
+      "{area} ke shoppers {brand} {topic} ke liye {business} ko {city} ki watch shop ke roop mein dekh sakte hain.",
+      "{brand} {topic} ki shopping soch rahe {area} ke logon ke liye {business}, {city} ki ek watch shop hai.",
+      "{area} se {brand} {topic} ki shopping ke liye {business}, {city} mein watch shop ka ek option hai.",
+      "{business} {city} ki watch shop hai, jo {area} se {brand} {topic} dekh rahe logon ke liye ek option hai.",
+      "{area} ke log {brand} {topic} dekh rahe hon to {business}, {city} ki watch shop ka ek option hai."
+    ],
+    "gu": [
+      "{area} thi {brand} {topic} jota loko mate {business}, {city} ni ek watch shop chhe.",
+      "{brand} {topic} ma ras dharavta {area} na loko mate {business}, {city} ni watch shop no ek option chhe.",
+      "{business}, {city} ni watch shop, {area} thi {brand} {topic} jota loko mate ek option chhe.",
+      "{area} na shoppers {brand} {topic} mate {business} ne {city} ni watch shop tarike joi shake.",
+      "{brand} {topic} ni shopping vicharta {area} na loko mate {business}, {city} ni ek watch shop chhe.",
+      "{area} thi {brand} {topic} ni shopping mate {business}, {city} ma watch shop no ek option chhe.",
+      "{business} {city} ni watch shop chhe, je {area} thi {brand} {topic} jota loko mate ek option chhe.",
+      "{area} na loko {brand} {topic} jota hoy to {business}, {city} ni watch shop no ek option chhe."
+    ]
+  }
+}

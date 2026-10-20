@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "researchedAt": "2026-10-20T03:44:57.051688+00:00",
+  "region": "IN",
+  "sources": [
+    {
+      "sourceType": "google-trends",
+      "sourceUrl": "https://trends.google.com/trending/rss?geo=IN",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    },
+    {
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    },
+    {
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    },
+    {
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    },
+    {
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+shop+Surat",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    },
+    {
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10
+    }
+  ],
+  "trends": {
+    "sourceUrl": "https://trends.google.com/trending/rss?geo=IN",
+    "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+    "geography": "India",
+    "status": "ok",
+    "observed": [
+      {
+        "term": "womens t20 spring challenge",
+        "publishedAt": "Mon, 19 Oct 2026 20:30:00 -0700",
+        "approximateTraffic": "500+"
+      },
+      {
+        "term": "அக்டோபர் 20",
+        "publishedAt": "Mon, 19 Oct 2026 20:30:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "is today bank holiday",
+        "publishedAt": "Mon, 19 Oct 2026 20:30:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "बाराबंकी",
+        "publishedAt": "Mon, 19 Oct 2026 20:20:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "sam raimi",
+        "publishedAt": "Mon, 19 Oct 2026 20:10:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "instagram video",
+        "publishedAt": "Mon, 19 Oct 2026 19:50:00 -0700",
+        "approximateTraffic": "200+"
+      },
+      {
+        "term": "தலைமைச் செயலகம்",
+        "publishedAt": "Mon, 19 Oct 2026 19:40:00 -0700",
+        "approximateTraffic": "200+"
+      },
+      {
+        "term": "dasara festival 2026",
+        "publishedAt": "Mon, 19 Oct 2026 19:40:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "దసరా శుభాకాంక్షలు",
+        "publishedAt": "Mon, 19 Oct 2026 19:40:00 -0700",
+        "approximateTraffic": "100+"
+      },
+      {
+        "term": "ममता बनर्जी",
+        "publishedAt": "Mon, 19 Oct 2026 19:30:00 -0700",
+        "approximateTraffic": "1000+"
+      }
+    ],
+    "relevant": []
+  },
+  "suggestions": [
+    {
+      "query": "ladies watches",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10,
+      "terms": [
+        "ladies watches titan",
+        "ladies watches",
+        "ladies watches branded",
+        "ladies watches online",
+        "ladies watches for women",
+        "ladies watches fastrack",
+        "ladies watches under 1000",
+        "ladies watches sonata",
+        "ladies watches titan raga",
+        "ladies watches under 2000"
+      ]
+    },
+    {
+      "query": "gents watches",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10,
+      "terms": [
+        "mens watches",
+        "mens watches under 2000",
+        "mens watches under 5000",
+        "mens watches under 1000",
+        "mens watches branded",
+        "mens watches under 10000",
+        "mens watches under 500",
+        "mens watches titan",
+        "mens watches under 3000",
+        "mens watches casio"
+      ]
+    },
+    {
+      "query": "wall clocks",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10,
+      "terms": [
+        "wall clocks",
+        "wall clocks for home",
+        "wall clocks online",
+        "wall clocks for 99 rupees",
+        "wall clocks for living room",
+        "wall clocks for bedroom",
+        "wall clocks near me",
+        "wall clocks for 99 rupees flipkart",
+        "wall clocks shop near me",
+        "wall clocks watch for home"
+      ]
+    },
+    {
+      "query": "watch shop Surat",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+shop+Surat",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10,
+      "terms": [
+        "watch shop surat",
+        "watch shop surat near me",
+        "watch shop surathkal",
+        "watch shop suratgarh",
+        "watch shop surat nearby",
+        "titan watch shop surat",
+        "smart watch shop surat",
+        "watch repair shop surat",
+        "wall watch shop surat",
+        "watch shop bhagal surat"
+      ]
+    },
+    {
+      "query": "watch gift",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00",
+      "status": "ok",
+      "observedCount": 10,
+      "terms": [
+        "watch gift",
+        "watch gift box",
+        "watch gift for men",
+        "watch gift set",
+        "watch gift good or bad",
+        "watch gift for girlfriend",
+        "watch gift for wife",
+        "watch gift for husband",
+        "watch gift for women",
+        "watch gift kr skte h"
+      ]
+    }
+  ],
+  "selectedKeywords": [
+    {
+      "category": "women",
+      "term": "ladies watches",
+      "phrase": "ladies watches",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "women",
+      "term": "ladies watches for women",
+      "phrase": "ladies watches for women",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "women",
+      "term": "watch gift for women",
+      "phrase": "women's watches for gifting",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "men",
+      "term": "mens watches",
+      "phrase": "men's watches",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "men",
+      "term": "watch gift for men",
+      "phrase": "men's watches for gifting",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks",
+      "phrase": "wall clocks",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for home",
+      "phrase": "wall clocks for home",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for living room",
+      "phrase": "wall clocks for living room",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for bedroom",
+      "phrase": "wall clocks for the bedroom",
+      "sourceType": "google-autocomplete",
+      "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
+      "retrievedAt": "2026-10-20T03:44:57.051688+00:00"
+    }
+  ],
+  "errors": []
+}

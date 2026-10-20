@@ -4,3 +4,8 @@ node_modules/
 !.env.example
 .DS_Store
 coverage/
+
+__pycache__/
+*.pyc
+keyword-research.pending
+work/

@@ -7,9 +7,11 @@
   "scripts": {
     "generate": "node scripts/generate-review-catalog.mjs",
     "check": "node --check app.js && node --check auto-review-generator.js && node --check review-core.js && node --check review-navigation.js && node --check business-profile.js && node scripts/generate-review-catalog.mjs --check",
-    "test": "node --test"
+    "test": "node --test && python3 -m unittest discover -s test -p \"*_test.py\"",
+    "research": "python3 scripts/research-google-keywords.py"
   },
   "devDependencies": {
+    "esbuild": "0.27.3",
     "happy-dom": "21.0.3"
   }
 }

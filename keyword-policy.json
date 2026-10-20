@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "region": "IN",
+  "queries": ["ladies watches", "gents watches", "wall clocks", "watch shop Surat", "watch gift"],
+  "candidates": [
+    {"category": "women", "term": "ladies watches", "phrase": "ladies watches"},
+    {"category": "women", "term": "ladies watches for women", "phrase": "ladies watches for women"},
+    {"category": "women", "term": "watch gift for women", "phrase": "women's watches for gifting"},
+    {"category": "men", "term": "mens watches", "phrase": "men's watches"},
+    {"category": "men", "term": "watch gift for men", "phrase": "men's watches for gifting"},
+    {"category": "clock", "term": "wall clocks", "phrase": "wall clocks"},
+    {"category": "clock", "term": "wall clocks for home", "phrase": "wall clocks for home"},
+    {"category": "clock", "term": "wall clocks for living room", "phrase": "wall clocks for living room"},
+    {"category": "clock", "term": "wall clocks for bedroom", "phrase": "wall clocks for the bedroom"}
+  ],
+  "fallbacks": [
+    {"category": "women", "term": "ladies watches", "phrase": "ladies watches"},
+    {"category": "men", "term": "gents watches", "phrase": "gents watches"},
+    {"category": "clock", "term": "wall clocks", "phrase": "wall clocks"}
+  ]
+}
