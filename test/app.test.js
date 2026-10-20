@@ -81,7 +81,6 @@ test('the page immediately loads one complete editable keyword draft with one ac
   assert.ok(editor.value.trim().split(/\s+/u).length >= 10, 'the initial value is a full draft');
   assert.match(editor.value, /Ambika Watch & Gift/);
   assert.match(editor.value, /Surat/);
-  assert.ok(editor.value.includes(app.draft.area));
   assert.ok(editor.value.includes(app.draft.keyword));
   assert.ok(['women', 'men', 'clock'].includes(app.draft.category));
   assert.ok(editor.value.length <= 1000);
@@ -91,6 +90,10 @@ test('the page immediately loads one complete editable keyword draft with one ac
   assert.equal($('copy-open').disabled, false);
   assert.equal($('copy-open').textContent.trim(), 'Copy & Leave Review');
   assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
+  for (const area of ['Varachha', 'Mota Varachha', 'Katargam', 'Amroli']) {
+    assert.ok(doc.querySelector('footer').textContent.includes(area));
+    assert.ok(!editor.value.includes(area), 'serving areas stay outside the customer draft');
+  }
   assert.equal(doc.querySelectorAll('.primary-button, button[type="submit"]').length, 1);
   assert.equal(doc.querySelectorAll('button').length, 1);
   assert.equal(doc.querySelector('select, option, details, [data-experience], [name="rating"], [role="radio"], input[type="radio"]'), null);
@@ -110,7 +113,6 @@ test('catalog language metadata changes draft tags while the interface remains E
     assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
     assert.doesNotMatch($('review-text').value, /[\u0900-\u097f\u0a80-\u0aff]/u);
     assert.equal($('review-text').value, app.draft.text);
-    assert.ok($('review-text').value.includes(app.draft.area));
     assert.ok($('review-text').value.includes(app.draft.keyword));
   }
 });
