@@ -26,13 +26,19 @@ The catalog keeps 270 women's-watch, 180 men's-watch and 50 wall-clock drafts; E
 
 Sources: [Google Trending Now/RSS](https://support.google.com/trends/answer/3076011?hl=en), [Autocomplete and Trends differ](https://support.google.com/websearch/answer/7368877?hl=en).
 
-## AI refresh every 15 days
+## Gemini sentence generation and 15-day refresh
 
-The connected ChatGPT task **Refresh Ambika review drafts** is enabled every **15 days**, beginning **4 November 2026 (UTC)**. It uses AI to review current keyword evidence and rewrite sentence templates, regenerate the catalog, run checks, publish only this repository and update the existing Drive backups. See [AUTOMATION.md](AUTOMATION.md) for the exact workflow and failure handling.
+The Gemini API now writes complete sentences for each context instead of inserting keywords into fixed sentence templates. `scripts/refresh-gemini-drafts.mjs` sends only public business context to Gemini and accepts a result only after all 500 sentences pass validation. English and Roman Hindi/Gujarati use natural category wording; the literal Google search phrase remains separate source evidence.
 
-`draft-wording.json` holds the AI-authored English/Roman Hindi/Roman Gujarati templates. `business-profile.js` validates the wording and keyword provenance, then generates `review-catalog.js`. The production page selects prepared drafts without a model download, external generation request, browser secret or customer database. The scheduled AI task runs separately from customer page visits; this is not a live AI call on each refresh.
+`gemini-drafts.json` records the provider, model, generation date, context hash and validated complete sentences. `npm run generate` compiles it into `review-catalog.js`. A present invalid/stale model result fails; an API failure never silently becomes a successful template refresh. Private checkpoints allow interrupted runs to resume without repurchasing accepted sentences.
 
-The reference HK Factory Outlet and MUKALAL sites also select complete strings from a 500-entry pool. Their repositories remain untouched. Ambika adds business-specific format validation, source-aware keyword research and the scheduled AI refresh.
+Each sentence records its actual Gemini model, including a supported Flash-Lite fallback when the primary model returns a quota limit. The API key is loaded only in the private maintenance process from `GEMINI_API_KEY` or the ignored mode-0600 `.env`. `.env.example` contains empty configuration, never a real key. No credential is committed, bundled, logged or placed in a task prompt. The browser still selects prepared sentences immediately; it does not call Gemini on every visitor refresh or expose an API key.
+
+The connected ChatGPT task **Refresh Ambika review drafts** remains enabled every **15 days**, starting **4 November 2026**. Its updated workflow researches Google evidence, runs the Gemini maintenance step, tests and publishes only this repository, then updates the existing Drive backups. It needs access to the configured private credential at run time; if that environment is replaced or the credential/API is unavailable, it preserves the last published page and reports the blocked refresh. GitHub's connection currently does not permit installing an Actions secret (HTTP 403); this is not presented as a deployed GitHub Actions job. See [AUTOMATION.md](AUTOMATION.md).
+
+The old placeholder wording remains only for explicit offline bootstrap before a Gemini manifest exists. Once model output is present, production generation uses the validated model sentences. No customer purchase, visit, staff feedback, price, rating, stock confirmation or praise is invented.
+
+Gemini references: [Generate Content API](https://ai.google.dev/api/generate-content), [Structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output).
 
 ## Google handoff and branding
 
@@ -49,11 +55,13 @@ Sources: [Maps URLs](https://developers.google.com/maps/documentation/urls/guide
 
 ## Development
 
-Requires Node 20.19+, npm and Python 3. Production is static.
+Requires Node 24.5+ for the proxy-aware Gemini maintenance command, npm and Python 3. Production is static.
 
 ```sh
 npm ci
 npm run research
+# Configure GEMINI_API_KEY privately, then:
+npm run refresh:gemini
 npm run generate
 npm run check
 npm test
@@ -62,7 +70,7 @@ python3 -m http.server 8080
 
 Use HTTP locally, not a file URL, for modules. Clipboard access requires HTTPS or localhost. Research runs during scheduled maintenance/development and never sends customer text to Google.
 
-The 39 tests cover keyword evidence and failure handling, exactly one sentence/area/brand/category, catalog uniqueness and mix, rejected claims, initial display, refresh exclusion, storage privacy, editing, clipboard failure, Android handoff and page lifecycle. DOM/navigation stubs do not verify native Maps review-composer behavior. No Google reviews are submitted during tests.
+The automated tests cover Gemini transport/timeout/error sanitization, complete model output and atomic failure handling, keyword evidence and failure handling, exactly one sentence/area/brand/category, catalog uniqueness and mix, rejected claims, initial display, refresh exclusion, storage privacy, editing, clipboard failure, Android handoff and page lifecycle. DOM/navigation stubs do not verify native Maps review-composer behavior. No Google reviews are submitted during tests.
 
 ## Deployment and backups
 
@@ -71,8 +79,8 @@ Only `BBI-Review-Systems-For-Clients/Ambika-Watch-Review-System` is modified. Gi
 After Pages builds the current commit:
 
 ```sh
-python3 scripts/verify-live.py --tests 39 --out work/delivery
+python3 scripts/verify-live.py --tests 59 --out work/delivery
 python3 scripts/build-delivery.py --out work/delivery
 ```
 
-The ZIP, standalone preview and notes replace the existing Drive deliverables. Other repositories, custom domains and the client's read-only source folder are not changed.
+The 11 served runtime/data files, including the Gemini manifest, are verified against the committed source. The ZIP, standalone preview and notes replace the existing Drive deliverables. Other repositories, custom domains and the client's read-only source folder are not changed.

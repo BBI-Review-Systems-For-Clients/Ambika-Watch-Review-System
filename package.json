@@ -6,9 +6,10 @@
   "description": "A short, customer-led Google review page for Ambika Watch & Gift, Surat.",
   "scripts": {
     "generate": "node scripts/generate-review-catalog.mjs",
-    "check": "node --check app.js && node --check auto-review-generator.js && node --check review-core.js && node --check review-navigation.js && node --check business-profile.js && node scripts/generate-review-catalog.mjs --check",
+    "check": "node --check app.js && node --check auto-review-generator.js && node --check review-core.js && node --check review-navigation.js && node --check business-profile.js && node --check gemini-client.js && node --check scripts/refresh-gemini-drafts.mjs && node scripts/generate-review-catalog.mjs --check",
     "test": "node --test && python3 -m unittest discover -s test -p \"*_test.py\"",
-    "research": "python3 scripts/research-google-keywords.py"
+    "research": "python3 scripts/research-google-keywords.py",
+    "refresh:gemini": "node --use-env-proxy scripts/refresh-gemini-drafts.mjs --resume && npm run generate"
   },
   "devDependencies": {
     "esbuild": "0.27.3",

@@ -22,6 +22,7 @@ DEPLOYED_FILES = (
     'index.html', 'style.css', 'app.js', 'review-core.js',
     'review-navigation.js', 'auto-review-generator.js', 'review-catalog.js',
     'keyword-policy.json', 'keyword-research.json', 'draft-wording.json',
+    'gemini-drafts.json',
 )
 MAX_BYTES = 4 * 1024 * 1024
 

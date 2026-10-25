@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 keyword-research.pending
 work/
+gemini-drafts.json.pending

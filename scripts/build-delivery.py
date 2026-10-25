@@ -23,6 +23,7 @@ REQUIRED_FILES = {
     'index.html', 'style.css', 'app.js', 'review-core.js',
     'review-navigation.js', 'auto-review-generator.js', 'review-catalog.js',
     'keyword-policy.json', 'keyword-research.json', 'draft-wording.json',
+    'gemini-drafts.json',
 }
 
 
@@ -37,7 +38,7 @@ def validate_report(report, commit):
         raise RuntimeError('Expected a built verification report for the exact Ambika repository')
     files = report.get('files', [])
     if {item.get('file') for item in files} != REQUIRED_FILES or len(files) != len(REQUIRED_FILES):
-        raise RuntimeError('Verification report must cover all ten runtime/data files')
+        raise RuntimeError('Verification report must cover all eleven runtime/data files')
     if any(item.get('status') != 200 or item.get('matchesCommittedFile') is not True for item in files):
         raise RuntimeError('All verified files must return HTTP 200 and match the committed source')
 
@@ -70,12 +71,28 @@ def make_preview():
     return html.replace('</body>', '<script>' + javascript + '</script>\n</body>')
 
 
-def make_notes(commit, report, research):
+def read_gemini_manifest():
+    target = ROOT / 'gemini-drafts.json'
+    if not target.is_file():
+        raise RuntimeError('Validated gemini-drafts.json is required before building this delivery')
+    manifest = json.loads(target.read_text(encoding='utf-8'))
+    if (manifest.get('schemaVersion') != 1 or manifest.get('provider') != 'google-gemini'
+            or not isinstance(manifest.get('model'), str) or not manifest['model']
+            or not isinstance(manifest.get('generatedAt'), str) or not manifest['generatedAt']
+            or not isinstance(manifest.get('entries'), list) or len(manifest['entries']) != 500):
+        raise RuntimeError('Expected a validated 500-sentence Gemini manifest with model and generation date')
+    return manifest
+
+
+def make_notes(commit, report, research, gemini):
     selected = research.get('selectedKeywords', [])
     source_counts = Counter(item.get('sourceType', 'unknown') for item in selected)
     source_summary = ', '.join(f'{kind}: {count}' for kind, count in sorted(source_counts.items())) or 'none'
     relevant = research.get('trends', {}).get('relevant', [])
     trend_status = research.get('trends', {}).get('status', 'unknown')
+    model = ', '.join(gemini.get('modelsUsed', [gemini['model']]))
+    generated_at = gemini['generatedAt']
+    usage = gemini.get('usage', {})
     tests = report.get('automatedTests')
     test_line = f'{tests} passing automated tests were reported by the caller after a separate test run.' if tests is not None else 'No automated test count was supplied to the verification script.'
     terms = '\n'.join(f"- {item.get('term')} [{item.get('category')}; {item.get('sourceType')}]" for item in selected)
@@ -90,7 +107,13 @@ The page opens with one editable suggested draft and one Copy & Leave Review act
 
 The catalog contains 500 unique drafts: 270 women's-watch, 180 men's-watch and 50 wall-clock topics; 200 English, 150 Roman Hindi and 150 Roman Gujarati. Refreshing uses a new random draft, excluding the previous ID when session storage is available. Only an opaque catalog ID is stored; customer words stay in the editor and are not transmitted by this page.
 
-A connected ChatGPT AI research task is scheduled separately from the static page to refresh wording and Google keyword research every 15 days. The task researches, validates, publishes only this Ambika repository and verifies Pages; it reports blockers rather than claiming a failed refresh succeeded. The browser does not call an AI endpoint or expose an API key.
+These complete sentences were generated through the Gemini API during private server-side maintenance, rather than assembled by inserting words into fixed sentence templates. Public model metadata: provider google-gemini; model {model}; generated at {generated_at}. The generated manifest contains accepted text and non-secret provenance only. The browser selects prepared sentences from the published catalog; it does not call Gemini, load a server module or receive an API key.
+
+The literal observed search phrase stays in keyword evidence, while each model-written sentence can use natural English, Roman Hindi or Roman Gujarati category wording. Entity, category, single-sentence and unsupported-claim validation runs before generated data is accepted.
+
+A connected AI research task is scheduled separately from the static page to refresh Google keyword research and run the maintenance generation every 15 days. Gemini requires GEMINI_API_KEY in the private process environment or ignored private .env file. Those private credentials are never included in this ZIP, public source, generated text or browser bundle. If private configuration, API access or validation is unavailable, the maintenance step preserves the existing published data and reports the failure. A schedule is not proof that an unattended Gemini request has already run.
+
+Recorded generation usage: {usage.get('requests', 'not recorded')} requests; {usage.get('inputTokens', 'not recorded')} input tokens; {usage.get('outputTokens', 'not recorded')} output tokens. These metadata values describe the recorded API run, not a cost or quota guarantee; resumed sentences can come from earlier requests. Usage scope: {usage.get('scope', 'not recorded')}; resumed entries: {usage.get('resumedEntries', 'not recorded')}.
 
 Current keyword research timestamp: {research.get('researchedAt')}
 Selected keyword phrases: {len(selected)} ({source_summary})
@@ -105,7 +128,7 @@ Suggested text does not invent customer visits, purchases, ratings, staff/servic
 The navy/red business-name header is centered on desktop and mobile. The exact wide logo still requires accessible original file bytes or a downloadable URL; no replacement image has been generated. The approved brand list retains 29 verified spellings; Mont Beree, Jean Friendi and Hong Kong remain withheld pending confirmation.
 
 {test_line}
-The ten deployed runtime/data files return HTTP 200 and match committed HEAD bytes. HTTP/source verification does not establish browser behavior, native Android review-composer behavior or review submission.
+The eleven deployed runtime/data files return HTTP 200 and match committed HEAD bytes. HTTP/source verification does not establish browser behavior, native Android review-composer behavior or review submission.
 
 Only the Ambika repository is packaged. This ZIP contains tracked source, standalone Preview.html, these notes and live-verification.json for the same commit. Use the live HTTPS page for the normal clipboard and Maps handoff; local-file browser policies can limit clipboard/app launching in the standalone preview.
 '''
@@ -126,18 +149,25 @@ def main():
     report = json.loads(verification.read_text(encoding='utf-8'))
     validate_report(report, commit)
     research = json.loads((ROOT / 'keyword-research.json').read_text(encoding='utf-8'))
+    gemini = read_gemini_manifest()
     preview_html = make_preview()
-    notes_text = make_notes(commit, report, research)
+    notes_text = make_notes(commit, report, research, gemini)
     args.out.mkdir(parents=True, exist_ok=True)
     preview = args.out / 'Ambika Watch Review System.html'
     notes = args.out / 'Ambika Watch - Delivery notes.txt'
     preview.write_text(preview_html, encoding='utf-8')
     notes.write_text(notes_text, encoding='utf-8')
     files = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode('utf-8').split('\0')
+    tracked_files = list(filter(None, files))
+    # Ignore rules alone do not protect a credential accidentally tracked earlier.
+    # Refuse it without reading any credential values.
+    if any(any(part == '.env' or (part.startswith('.env.') and part != '.env.example')
+                   for part in Path(file).parts) for file in tracked_files):
+        raise RuntimeError('Private environment files must never be tracked or packaged')
     archive_path = args.out / 'Ambika-Watch-Review-System.zip'
     pending = archive_path.with_suffix('.pending')
     with zipfile.ZipFile(pending, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for file in filter(None, files):
+        for file in tracked_files:
             archive.write(ROOT / file, 'Ambika-Watch-Review-System/' + file)
         archive.write(preview, 'Ambika-Watch-Review-System/Preview.html')
         archive.write(notes, 'Ambika-Watch-Review-System/Delivery notes.txt')
