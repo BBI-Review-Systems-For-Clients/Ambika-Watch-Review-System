@@ -74,7 +74,7 @@ function memoryStorage() {
   };
 }
 
-test('the page immediately loads one complete editable keyword draft with one action and no options', t => {
+test('the page immediately loads a clearly marked editable customer POV template with one action and no options', t => {
   const { app, doc, $ } = fixture(t);
   const editor = $('review-text');
   assert.equal(editor.value, app.draft.text);
@@ -84,15 +84,22 @@ test('the page immediately loads one complete editable keyword draft with one ac
   assert.ok(editor.value.includes(app.draft.keyword));
   assert.ok(editor.value.includes(app.draft.area));
   assert.ok(editor.value.includes(app.draft.brand));
+  assert.match(editor.value, /\[area: /u);
+  assert.match(editor.value, /\[brand: /u);
+  assert.match(editor.value, /\[category: /u);
+  assert.match(editor.value, /\[recipient\]/u);
+  assert.match(editor.value, /\[experience\]/u);
   assert.equal(editor.value.match(/[.!?]/g)?.length, 1);
   assert.ok(['women', 'men', 'clock'].includes(app.draft.category));
   assert.ok(editor.value.length <= 1000);
   assert.equal(editor.maxLength, 1000);
   assert.equal(editor.readOnly, false);
   assert.ok(Number.parseFloat(editor.style.height) > 0, 'the draft resizes on load');
-  assert.equal($('copy-open').disabled, false);
+  assert.equal($('copy-open').disabled, true);
   assert.equal($('copy-open').textContent.trim(), 'Copy & Leave Review');
-  assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
+  assert.match(doc.body.textContent, /Your review template/);
+  assert.match(doc.body.textContent, /Replace every \[bracket\] with your real details\./);
+  assert.match(doc.body.textContent, /remove anything that does not apply/);
   for (const area of ['Varachha', 'Mota Varachha', 'Katargam', 'Amroli']) {
     assert.ok(doc.querySelector('footer').textContent.includes(area));
   }
@@ -112,11 +119,52 @@ test('catalog language metadata changes draft tags while the interface remains E
     assert.equal($('review-text').lang, languageTags[language]);
     assert.equal(doc.documentElement.lang, languageTags[language]);
     assert.equal($('copy-open').textContent.trim(), 'Copy & Leave Review');
-    assert.match(doc.body.textContent, /Suggested draft\. Edit it to match your visit\./);
+    assert.match(doc.body.textContent, /Replace every \[bracket\] with your real details\./);
     assert.doesNotMatch($('review-text').value, /[\u0900-\u097f\u0a80-\u0aff]/u);
     assert.equal($('review-text').value, app.draft.text);
     assert.ok($('review-text').value.includes(app.draft.keyword));
   }
+});
+
+test('unfilled or partly removed slots block button and programmatic submits before copying or navigation', async t => {
+  let requests = 0;
+  const { app, doc, $, type, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, async () => { requests++; }),
+  });
+  for (const incomplete of [app.draft.text, 'I came from [area.', 'My experience was good].', 'I bought [] for Papa.']) {
+    type(incomplete);
+    assert.equal($('copy-open').disabled, true);
+    submit();
+    await settle();
+    assert.equal($('status').textContent, COPY.incomplete);
+    assert.equal($('status').dataset.tone, 'error');
+    assert.equal(doc.activeElement, $('review-text'));
+    assert.equal($('review-text').value, incomplete);
+  }
+  // Scripted submission must also check an edit that did not fire an input event.
+  type('I browsed watches for my father.');
+  assert.equal($('copy-open').disabled, false);
+  $('review-text').value = 'I bought [brand: Titan] for my father.';
+  submit();
+  await settle();
+  assert.equal($('copy-open').disabled, true);
+  assert.equal(requests, 0);
+  assert.deepEqual(destinations, []);
+});
+
+test('customer first-person wording and criticism are copied exactly without adding praise or purchase facts', async t => {
+  const copies = [];
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: win => setClipboard(win, async text => copies.push(text)),
+  });
+  const actualExperience = 'Main Papa ke liye watch dekhne aaya tha, lekin price mere budget se zyada tha aur maine kharidi nahi ki.';
+  type(actualExperience);
+  assert.equal($('copy-open').disabled, false);
+  submit();
+  await settle();
+  assert.equal($('review-text').value, actualExperience);
+  assert.deepEqual(copies, [actualExperience]);
+  assert.deepEqual(destinations, [googleURL]);
 });
 
 test('refreshing within one session avoids the previous draft even with fixed randomness', t => {
@@ -156,7 +204,7 @@ test('the default session storage keeps only the opaque catalog ID and never sto
   assert.notEqual(session.values.get(LAST_REVIEW_KEY), $('review-text').value);
 });
 
-test('blocked storage access, reads and writes cannot prevent a ready editable draft', t => {
+test('blocked storage access, reads and writes cannot prevent an editable template', t => {
   const configurations = [
     win => Object.defineProperty(win, 'sessionStorage', { configurable: true, get() { throw new Error('Storage blocked'); } }),
     win => Object.defineProperty(win, 'sessionStorage', { configurable: true, value: {
@@ -171,10 +219,11 @@ test('blocked storage access, reads and writes cannot prevent a ready editable d
   for (const configure of configurations) {
     const { $, type } = fixture(t, { configure });
     assert.ok($('review-text').value.trim());
-    assert.equal($('copy-open').disabled, false);
+    assert.equal($('copy-open').disabled, true);
     assert.equal($('review-text').readOnly, false);
     type('My own words.');
     assert.equal($('review-text').value, 'My own words.');
+    assert.equal($('copy-open').disabled, false);
   }
 });
 
@@ -242,12 +291,13 @@ test('clipboard rejection copies trimmed text and restores the editor value and 
 
 test('without Clipboard API support selected-text copy can still leave for Google', async t => {
   let legacyCopies = 0;
-  const { submit, destinations } = fixture(t, {
+  const { type, submit, destinations } = fixture(t, {
     configure: (win, doc) => {
       Object.defineProperty(win.navigator, 'clipboard', { configurable: true, value: undefined });
       doc.execCommand = command => { legacyCopies++; assert.equal(command, 'copy'); return true; };
     },
   });
+  type('I bought a watch for my father and liked the options.');
   submit();
   await settle();
   assert.equal(legacyCopies, 1);
@@ -437,10 +487,36 @@ test('an ignored Android launch lets the same button open HTTPS on the next tap'
   assert.equal($('review-text').value, 'I browsed watches for gifting.');
 });
 
+test('restoring a template slot after Android launch blocks handoff until the real details are filled again', t => {
+  let copies = 0;
+  const { $, type, submit, destinations } = fixture(t, {
+    configure: (win, doc) => {
+      setAndroid(win);
+      doc.execCommand = () => { copies++; return true; };
+    },
+  });
+  type('I browsed Titan watches for my father.');
+  submit();
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
+  type('I browsed Titan watches for [recipient].');
+  assert.equal($('copy-open').disabled, true);
+  submit();
+  assert.equal($('status').textContent, COPY.incomplete);
+  assert.equal(copies, 1);
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
+  type('I browsed Titan watches for my friend.');
+  submit();
+  assert.equal(copies, 2);
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT, ANDROID_MAPS_INTENT]);
+  submit();
+  assert.equal(copies, 2);
+  assert.deepEqual(destinations, [ANDROID_MAPS_INTENT, ANDROID_MAPS_INTENT, googleURL]);
+});
+
 test('a refused Android intent keeps the HTTPS fallback ready without another copy', t => {
   const attempts = [];
   let copies = 0;
-  const { $, submit } = fixture(t, {
+  const { $, type, submit } = fixture(t, {
     configure: (win, doc) => {
       setAndroid(win);
       doc.execCommand = () => { copies++; return true; };
@@ -450,6 +526,7 @@ test('a refused Android intent keeps the HTTPS fallback ready without another co
       if (url === ANDROID_MAPS_INTENT) throw new Error('Intent refused');
     },
   });
+  type('I visited to buy a watch for my friend.');
   submit();
   assert.equal($('status').textContent, COPY.openFailed);
   assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
@@ -463,7 +540,8 @@ test('a persisted pagehide keeps handlers and manual edits usable after restorin
   const { $, win, type, submit, destinations } = fixture(t, {
     configure: win => setClipboard(win, async text => copied.push(text)),
   });
-  const firstReview = $('review-text').value;
+  const firstReview = 'I came to browse watches and the prices suited my budget.';
+  type(firstReview);
   submit();
   await settle();
   const pagehide = new win.Event('pagehide');
@@ -481,12 +559,13 @@ test('a persisted pagehide keeps handlers and manual edits usable after restorin
 test('disposing a page while copying prevents pending navigation and removes the submit handler', async t => {
   let finishCopy;
   let requests = 0;
-  const { app, submit, destinations } = fixture(t, {
+  const { app, type, submit, destinations } = fixture(t, {
     configure: win => setClipboard(win, () => {
       requests++;
       return new Promise(resolve => { finishCopy = resolve; });
     }),
   });
+  type('I browsed watches for myself.');
   submit();
   app.dispose();
   finishCopy();
@@ -500,9 +579,10 @@ test('disposing a page while copying prevents pending navigation and removes the
 
 test('a nonpersisted pagehide prevents pending clipboard completion from navigating', async t => {
   let finishCopy;
-  const { win, submit, destinations } = fixture(t, {
+  const { win, type, submit, destinations } = fixture(t, {
     configure: win => setClipboard(win, () => new Promise(resolve => { finishCopy = resolve; })),
   });
+  type('I browsed watches for myself.');
   submit();
   win.dispatchEvent(new win.Event('pagehide'));
   finishCopy();

@@ -10,5 +10,5 @@ if (process.argv.includes('--check')) {
   console.log('Review catalog matches its source configuration.');
 } else {
   await writeFile(output, contents);
-  console.log('Generated 500 unique keyword-rich business-context drafts.');
+  console.log('Compiled 500 validated customer-POV templates with editable personal details.');
 }

@@ -2,7 +2,7 @@ import { REVIEW_CATALOG } from './review-catalog.js';
 
 export const LAST_REVIEW_KEY = 'ambika-review:last-id:v1';
 
-/** Select a complete prebuilt suggestion. No customer details are inferred. */
+/** Select a prebuilt fill-in template. Unknown customer details stay in brackets. */
 export function createAutomaticReviewGenerator({ random = Math.random } = {}) {
   let lastId;
   return {

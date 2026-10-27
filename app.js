@@ -8,6 +8,7 @@ export const COPY = Object.freeze({
   leaveReview: 'Leave Review',
   copied: 'Review copied.',
   empty: 'Write a few words before continuing.',
+  incomplete: 'Replace all [bracketed details] with your own experience before copying.',
   busy: 'Copying…',
   copyFailed: 'Copy the selected text, then tap Leave Review.',
   openFailed: 'Could not open Google. Tap Leave Review to try again.',
@@ -42,8 +43,11 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     $('status').textContent = key ? COPY[key] : '';
     $('status').dataset.tone = tone;
   };
+  // A suggested area, purchase or experience is not a customer fact until edited.
+  // Check either bracket so a partly deleted slot cannot slip through the handoff.
+  const hasUnfilledDetails = () => /[\[\]]/u.test(editor.value);
   const updateEditor = () => {
-    submit.disabled = copying || !editor.value.trim();
+    submit.disabled = copying || !editor.value.trim() || hasUnfilledDetails();
     editor.readOnly = copying;
     submit.querySelector('span').textContent = copying ? COPY.busy : readyToLeave ? COPY.leaveReview : COPY.copyOpen;
   };
@@ -94,6 +98,7 @@ export function initReviewApp(doc = document, win = window, { navigate = url => 
     event.preventDefault();
     if (copying) return;
     if (!editor.value.trim()) { notify('empty', 'error'); editor.focus(); return; }
+    if (hasUnfilledDetails()) { notify('incomplete', 'error'); updateEditor(); editor.focus(); return; }
     if (readyToLeave) { leaveReview(); return; }
     const text = editor.value.trim();
     copying = true;

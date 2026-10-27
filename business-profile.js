@@ -145,6 +145,70 @@ const GENERATED_REPUTATION = /\b(?:good|great)\s+place\b|\bwell[- ]known\b|\bpop
 const GEMINI_MODEL_NAME = /^(?:models\/)?gemini-[A-Za-z0-9._-]{1,100}$/;
 const validGeminiModel = value => typeof value === 'string' && GEMINI_MODEL_NAME.test(value);
 const normalizeGeminiModel = value => value.replace(/^models\//, '');
+export const CUSTOMER_POV_KIND = 'customer-pov-template';
+export const CUSTOMER_POV_SLOTS = Object.freeze(['area', 'brand', 'category', 'recipient', 'experience']);
+const DESCRIPTIVE_KIND = 'business-context-draft';
+// First-person visit/purchase grammar is allowed only in the explicitly marked
+// template mode. Personal details and judgements must remain unresolved slots.
+const POV_UNGROUNDED_DETAILS = /\b(?:staff|service|quality|helpful|friendly|polite|rude|good|great|best|bad|poor|nice|happy|satisfaction|satisfied|excellent|amazing|perfect|recommend|recommended|reliable|reasonable|affordable|expensive|cheap|price|prices|pricing|range|ranges|experience|overall|discount|offer|offers|warranty|guaranteed|genuine|authentic|original|popular|famous|known|papa|father|dad|daddy|mother|mummy|mom|mama|friend|friends|wife|husband|sister|brother|daughter|son|family|birthday|anniversary|wedding|yesterday|today|tomorrow|yday|rupees|rs|inr|acha|achha|accha|achhi|achhe|achcha|achchi|achche|badiya|badhiya|sasta|sasti|mehenga|mahenga|saru|saro|saras|sari|mast|anubhav|vyavhar|bhav|kimat|undetectable|algorithm|ranking)\b|five.star|5.star|human[- ](?:written|typed)|AI[- ]free|\d|in stock|currently available|available now/i;
+const FIRST_PERSON = Object.freeze({ en: /\b(?:I|we)\b/i, hi: /\b(?:main|maine|hum|humne)\b/i, gu: /\b(?:hu|hun|ame|me)\b/i });
+// Only neutral first-person visit/purchase grammar belongs outside the fields.
+// A finite vocabulary fails closed on new adjectives, relatives and concrete
+// experience details instead of trusting an ever-growing sentiment denylist.
+export const CUSTOMER_POV_SCAFFOLD_WORDS = Object.freeze({
+  en: Object.freeze(`i we my our me us a an the this that it from to at in for and or with as of by after before when while on into there here back then was were is are am be being been have had did do to go went gone going come came coming visit visited visiting stop stopped stopping travel travelled traveled travelling traveling arrive arrived arriving head headed heading drop dropped dropping buy bought buying purchase purchased purchasing choose chose chosen choosing pick picked picking look looked looking browse browsed browsing check checked checking see saw seen seeing select selected selecting find found finding get got getting take took taken taking want wanted wanting plan planned planning intend intended intending hope hoped hoping seek sought seeking make made making way up out over around through along towards about having i've we've i'm we're i'd we'd i'll we'll`.split(/\s+/)),
+  hi: Object.freeze(`main maine hum humne ham hamne mai mein me mera meri mere mujhe apna apni apne hamara hamari hamare humara humari humare se ke ki ka ko liye lie par pe yahan yaha yahaan idhar wahan waha wahaan aur ya to toh jab tab phir lekin magar kharidne kharid kharida kharidi kharide kharidna khareedne khareed khareeda khareedi khareede khareedna lene lena liya liye li aaya aayi aai aaye aya ayi gaya gayi gai gaye gya gyi gye aata aati aate jaane jana jaata jaati jaate dekhne dekh dekha dekhi dekhe dekhna chunne chun chuna chuni chune chunna chala chali chale pahuncha pahunchi pahunche tha thi the thaa hoon hun hu hai hain ho hoke hokar kar karne kiya karke is iss us uss ek tak saath sath baad pehle dauran douran soch socha sochkar`.split(/\s+/)),
+  gu: Object.freeze(`hu hun hoo me mane ame amey maro mari mara amaro amari amara thi ma maan maa par pase mate ne ni no na nu ane pan ke to tyare pachhi pachi pahela pehla leva levu lidhu lidhi lidho lidha lida lidhela lidheli kharidva kharidyu kharidi kharidyo kharidya kharidvu jova jovu joyu joi joya joyi jovaa java javu javanu gayo gai gayi gaya gya gyu gyi aavyo aavi aavya aaviyo avyo avi avya aavva aavvu aavine aavto aavti aavta hato hati hata htu hti pahochyo pahonchyo pahochi pahonchi pahonchya pahochya karva karvu karine karyu karyun karyo kari karya karta karata chhu chu chhe che chho chhiye chhie hoy aa te e tya tyaan ahi ahin ahiya ahiyan sathe saathe sudhhi sudhi taraf ek j thay thayu thai thaine pasandgi`.split(/\s+/)),
+});
+const SCAFFOLD_WORD_SETS = Object.freeze(Object.fromEntries(Object.entries(CUSTOMER_POV_SCAFFOLD_WORDS)
+  .map(([language, words]) => [language, new Set(words)])));
+
+function validateCustomerPovTemplate(text, categoryPhrase, context) {
+  const slots = [...text.matchAll(/\[[^\[\]]+\]/g)].map(match => match[0]);
+  const required = [`[area: ${context.area}]`, `[brand: ${context.brand}]`, `[category: ${categoryPhrase}]`, '[recipient]', '[experience]'];
+  const scaffold = text.replace(/\[[^\[\]]+\]/g, '');
+  if (slots.length !== required.length || required.some(slot => slots.filter(value => value === slot).length !== 1)
+    || /[\[\]]/.test(scaffold)) {
+    throw new Error(`Customer POV template needs exactly five unresolved slots for ${context.contextId}`);
+  }
+  const links = {
+    en: { recipient: /\bfor\s+\[recipient\]/, experience: /\band\s+\[experience\]\.$/ },
+    hi: { recipient: /\[recipient\]\s+ke\s+liye\b/, experience: /\baur\s+\[experience\]\.$/ },
+    gu: { recipient: /\[recipient\]\s+mate\b/, experience: /\bane\s+\[experience\]\.$/ },
+  }[context.language];
+  const experienceLink = text.match(links.experience);
+  const recipientLink = text.match(links.recipient);
+  if (!experienceLink || !recipientLink || recipientLink.index >= experienceLink.index) {
+    throw new Error(`Customer POV template must attach recipient to the purchase before the final experience clause for ${context.contextId}`);
+  }
+  const areaSlot = escapeRegExp(`[area: ${context.area}]`);
+  const areaRelation = new RegExp(context.language === 'en' ? `\\bfrom\\s+${areaSlot}`
+    : `${areaSlot}\\s+${context.language === 'hi' ? 'se' : 'thi'}\\b`, 'i');
+  if (!areaRelation.test(text)) throw new Error(`Customer POV area must describe coming from the example area for ${context.contextId}`);
+  // The example area, brand and category must never escape their labeled slots.
+  const plainScaffold = scaffold.replace(context.business, '').replace(context.city, '');
+  if (context.language === 'en' && (!/\b(?:came|went|visited|stopped|traveled|travelled|arrived|dropped)\b|\b(?:was|were)\s+at\b/i.test(plainScaffold)
+    || /\b(?:plan|planning|intend|intending|will)\b/i.test(plainScaffold))) {
+    throw new Error(`Customer POV template needs a past visit rather than a future plan for ${context.contextId}`);
+  }
+  const unknownWords = [...new Set((plainScaffold.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [])
+    .map(word => word.toLowerCase()).filter(word => !SCAFFOLD_WORD_SETS[context.language]?.has(word)))];
+  if (unknownWords.length) {
+    throw new Error(`Customer POV template has unsupported outside-slot words for ${context.contextId}: ${unknownWords.slice(0, 12).join(', ').slice(0, 180)}`);
+  }
+  if (context.language === 'gu' && ((plainScaffold.match(/\b(?:aavyo|aavi|aavya|aaviyo|avyo|avi|avya|gayo|gayi|gaya|gya)\s+(?:hato|hati|hata)\b/gi)?.length || 0) > 1
+    || (context.category === 'clock' && !/\b(?:leva|jova|kharidva)\b/i.test(plainScaffold)))) {
+    throw new Error(`Gujarati template needs one clear visit clause and a clock-shopping intent for ${context.contextId}`);
+  }
+  if (allEntities(BUSINESS_PROFILE.servingAreas).test(scaffold) || BRAND_PATTERN.test(scaffold)
+    || plainScaffold.toLowerCase().includes(categoryPhrase.toLowerCase())
+    || !FIRST_PERSON[context.language]?.test(plainScaffold)
+    || POV_UNGROUNDED_DETAILS.test(plainScaffold) || GENERATED_STOCK_VERBS.test(plainScaffold)
+    || GENERATED_REPUTATION.test(plainScaffold)) {
+    throw new Error(`Customer POV template invents a personal detail or judgement for ${context.contextId}`);
+  }
+  return Object.freeze({ kind: CUSTOMER_POV_KIND, templateSlots: CUSTOMER_POV_SLOTS });
+}
 
 
 function claimsServingAreaLocation(text, context) {
@@ -183,6 +247,9 @@ export function validateGeminiDrafts(contexts, manifest) {
     || typeof manifest.generatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(manifest.generatedAt) || !Number.isFinite(Date.parse(manifest.generatedAt))) {
     throw new Error('Gemini drafts require schemaVersion 1, Google provider, model and generation date');
   }
+  const kind = manifest.kind === undefined ? DESCRIPTIVE_KIND : manifest.kind;
+  if (![DESCRIPTIVE_KIND, CUSTOMER_POV_KIND].includes(kind)) throw new Error('Gemini drafts have an unsupported kind');
+  const customerPov = kind === CUSTOMER_POV_KIND;
   if (manifest.contextHash !== expectedHash) throw new Error('Gemini drafts are stale or have an invalid context hash');
   if (!Array.isArray(manifest.entries) || manifest.entries.length !== contexts.length) {
     throw new Error('Gemini drafts must cover every context exactly once');
@@ -200,7 +267,9 @@ export function validateGeminiDrafts(contexts, manifest) {
     const model = normalizeGeminiModel(rawModel);
     if (typeof text !== 'string' || text !== text.trim() || !text.length || text.length > 400
       || text.split(/\s+/u).length > 50 || !/[.!?]$/.test(text) || text.match(/[.!?]/g)?.length !== 1
-      || /[\n\r<>]/.test(text) || NATIVE_SCRIPT.test(text) || CLAIMS.test(text) || EXTRA_GENERATED_CLAIMS.test(text) || GENERATED_STOCK_VERBS.test(text) || GENERATED_REPUTATION.test(text)) {
+      || /[\n\r<>]/.test(text) || NATIVE_SCRIPT.test(text)
+      || (customerPov ? !/^[\x20-\x7e]+$/.test(text)
+        : CLAIMS.test(text) || EXTRA_GENERATED_CLAIMS.test(text) || GENERATED_STOCK_VERBS.test(text) || GENERATED_REPUTATION.test(text))) {
       throw new Error(`Invalid one-sentence Gemini draft for ${entry.contextId}`);
     }
     if (typeof categoryPhrase !== 'string' || categoryPhrase !== categoryPhrase.trim()
@@ -210,6 +279,7 @@ export function validateGeminiDrafts(contexts, manifest) {
       || BRAND_PATTERN.test(categoryPhrase) || UNSUPPORTED_TOPIC.test(categoryPhrase)) {
       throw new Error(`Gemini draft has an invalid ${context.category} category phrase`);
     }
+    const templateMetadata = customerPov ? validateCustomerPovTemplate(text, categoryPhrase, context) : {};
     const areas = text.match(allEntities(BUSINESS_PROFILE.servingAreas));
     const brands = text.match(allEntities(BRAND_NAMES));
     if (areas?.length !== 1 || areas[0] !== context.area || brands?.length !== 1 || brands[0] !== context.brand
@@ -241,7 +311,7 @@ export function validateGeminiDrafts(contexts, manifest) {
     seenText.add(normalizedText);
     const phraseStart = text.toLowerCase().indexOf(categoryPhrase.toLowerCase());
     const renderedPhrase = text.slice(phraseStart, phraseStart + categoryPhrase.length);
-    byId.set(entry.contextId, Object.freeze({ contextId: entry.contextId, text, categoryPhrase: renderedPhrase, model }));
+    byId.set(entry.contextId, Object.freeze({ contextId: entry.contextId, text, categoryPhrase: renderedPhrase, model, ...templateMetadata }));
   }
   if (manifest.modelsUsed !== undefined) {
     if (!Array.isArray(manifest.modelsUsed) || !manifest.modelsUsed.length || manifest.modelsUsed.some(model => !validGeminiModel(model))) {
@@ -267,7 +337,8 @@ export function buildReviewCatalog({ research = readJson('keyword-research.json'
       const id = createHash('sha256').update(entry.text).digest('hex').slice(0, 16);
       return Object.freeze({ id, language: context.language, area: context.area, brand: context.brand,
         category: context.category, keyword: entry.categoryPhrase, topic: context.topic,
-        contextId: context.contextId, categoryPhrase: entry.categoryPhrase, generator: 'google-gemini', generatorModel: entry.model, text: entry.text });
+        contextId: context.contextId, categoryPhrase: entry.categoryPhrase, generator: 'google-gemini', generatorModel: entry.model,
+        ...(entry.kind ? { kind: entry.kind, templateSlots: entry.templateSlots } : {}), text: entry.text });
     }));
   }
 

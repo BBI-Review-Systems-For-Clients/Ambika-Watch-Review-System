@@ -11,7 +11,7 @@ import {generateGeminiManifest,refreshGeminiFile} from '../scripts/refresh-gemin
 const contexts=buildReviewContexts().filter(x=>x.language==='en'&&x.category==='women').slice(0,3);
 const model='gemini-2.5-flash';
 const key='test-private-credential';
-const row=context=>({contextId:context.contextId,text:`From ${context.area}, comparing ${context.brand} ladies watches brings Ambika Watch & Gift in Surat into the search.`,categoryPhrase:'ladies watches'});
+const row=context=>({contextId:context.contextId,text:`I came from [area: ${context.area}] to Ambika Watch & Gift, Surat to buy [brand: ${context.brand}] [category: ladies watches] for [recipient], and [experience].`,categoryPhrase:'ladies watches'});
 const response=input=>({entries:input.map(row),usage:{inputTokens:100,outputTokens:50}});
 
 async function temporaryFile(t){
@@ -25,6 +25,7 @@ async function temporaryFile(t){
 test('validated Gemini refresh stages complete context-ordered sentences and nonsecret provenance',async()=>{
  const result=await generateGeminiManifest({contexts,apiKey:key,model,batchSize:2,request:async({contexts:input})=>response(input)});
  assert.equal(result.entries.length,3);
+ assert.equal(result.kind,'customer-pov-template');
  assert.deepEqual(result.entries.map(x=>x.contextId),contexts.map(x=>x.contextId));
  assert.equal(result.usage.requests,2);
  assert.equal(result.usage.inputTokens,200);
@@ -67,11 +68,21 @@ test('successful refresh replaces the staged file only after all contexts pass',
 });
 
 test('valid private checkpoints resume without calling Gemini again for accepted contexts',async()=>{
- const checkpoint={contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])]};
+ const checkpoint={kind:'customer-pov-template',contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])]};
  let requested;
  const result=await generateGeminiManifest({contexts,apiKey:key,model,checkpoint,request:async({contexts:input})=>{requested=input;return response(input);}});
  assert.deepEqual(requested.map(x=>x.contextId),contexts.slice(1).map(x=>x.contextId));
  assert.equal(result.entries.length,3);
+});
+
+test('descriptive-mode checkpoints cannot resume into the customer-POV catalog',async()=>{
+ const checkpoint={contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])],activeModel:'gemini-3.1-flash-lite'};
+ let requested;
+ const result=await generateGeminiManifest({contexts,apiKey:key,model,checkpoint,request:async({contexts:input,model:requestedModel})=>{
+  requested=input;assert.equal(requestedModel,model);return response(input);
+ }});
+ assert.equal(requested.length,contexts.length);
+ assert.equal(result.usage.resumedEntries,0);
 });
 
 test('a malformed transport response gets a bounded retry without losing valid staging',async()=>{
@@ -97,4 +108,26 @@ test('model quota fallback preserves actual per-sentence Gemini model provenance
  assert.equal(attempts,2);
  assert.deepEqual(manifest.modelsUsed,['gemini-3.1-flash-lite']);
  assert.ok(manifest.entries.every(entry=>entry.model==='gemini-3.1-flash-lite'));
+});
+
+test('a primary quota rejection permits one bounded model switch on the final content attempt',async()=>{
+ let attempts=0;
+ const manifest=await generateGeminiManifest({contexts,apiKey:key,model,maxAttempts:1,request:async({contexts:input,model:requestedModel})=>{
+  attempts++;
+  if(requestedModel===model) throw new GeminiRequestError('HTTP','Quota reached',429);
+  assert.equal(requestedModel,'gemini-3.1-flash-lite');
+  return response(input);
+ }});
+ assert.equal(attempts,2);
+ assert.equal(manifest.usage.requests,2);
+ assert.deepEqual(manifest.modelsUsed,['gemini-3.1-flash-lite']);
+});
+
+test('quota failure in both models stops without a model-switch loop',async()=>{
+ let attempts=0;
+ await assert.rejects(generateGeminiManifest({contexts,apiKey:key,model,maxAttempts:1,request:async()=>{
+  attempts++;
+  throw new GeminiRequestError('HTTP','Quota reached',429);
+ }}),error=>error.status===429);
+ assert.equal(attempts,2);
 });

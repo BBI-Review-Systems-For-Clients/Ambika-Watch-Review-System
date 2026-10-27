@@ -77,10 +77,11 @@ def read_gemini_manifest():
         raise RuntimeError('Validated gemini-drafts.json is required before building this delivery')
     manifest = json.loads(target.read_text(encoding='utf-8'))
     if (manifest.get('schemaVersion') != 1 or manifest.get('provider') != 'google-gemini'
+            or manifest.get('kind') != 'customer-pov-template'
             or not isinstance(manifest.get('model'), str) or not manifest['model']
             or not isinstance(manifest.get('generatedAt'), str) or not manifest['generatedAt']
             or not isinstance(manifest.get('entries'), list) or len(manifest['entries']) != 500):
-        raise RuntimeError('Expected a validated 500-sentence Gemini manifest with model and generation date')
+        raise RuntimeError('Expected a validated 500-template customer-POV Gemini manifest with model and generation date')
     return manifest
 
 
@@ -103,15 +104,17 @@ SOURCE: {SOURCE_URL}
 Commit: {commit}
 Verified at: {report.get('verifiedAt')}
 
-The page opens with one editable suggested draft and one Copy & Leave Review action, without selectors. Every generated draft is exactly ONE sentence containing Ambika Watch & Gift, Surat/watch-shop context, ONE serving area (Varachha, Mota Varachha, Katargam or Amroli), ONE approved brand name and ONE category topic. Brand references describe shopper interest, not confirmed inventory. Onex is the only wall-clock brand used. There is no generic second product sentence.
+The page opens with one clearly labeled, editable customer-POV template and one Copy & Leave Review action, without selectors. Every generated template is exactly ONE first-person sentence containing Ambika Watch & Gift and Surat, with five unresolved fields: [area: suggested area], [brand: suggested brand], [category: category phrase], [recipient] and [experience]. Area/brand/category examples occur only inside their editable brackets. They do not establish what the customer bought or where they live; Onex is the only clock-brand example. There is no generic second product sentence.
 
-The catalog contains 500 unique drafts: 270 women's-watch, 180 men's-watch and 50 wall-clock topics; 200 English, 150 Roman Hindi and 150 Roman Gujarati. Refreshing uses a new random draft, excluding the previous ID when session storage is available. Only an opaque catalog ID is stored; customer words stay in the editor and are not transmitted by this page.
+Customers replace ALL bracketed fields with real details, or delete anything inapplicable, before copying. The recipient can be a parent, friend or the customer; staff, pricing and overall experience must come from their actual visit and can include criticism. Copy is disabled while any opening or closing bracket remains, and programmatic submit is independently checked before copying or Google navigation. No invented relative, completed purchase, staff praise, satisfaction or price claim is inserted as fact.
 
-These complete sentences were generated through the Gemini API during private server-side maintenance, rather than assembled by inserting words into fixed sentence templates. Public model metadata: provider google-gemini; model {model}; generated at {generated_at}. The generated manifest contains accepted text and non-secret provenance only. The browser selects prepared sentences from the published catalog; it does not call Gemini, load a server module or receive an API key.
+The catalog contains 500 unique templates: 270 women's-watch, 180 men's-watch and 50 wall-clock topics; 200 English, 150 Roman Hindi and 150 Roman Gujarati. Refreshing uses a new random template, excluding the previous ID when session storage is available. Only an opaque catalog ID is stored; customer words stay in the editor and are not transmitted by this page.
 
-The literal observed search phrase stays in keyword evidence, while each model-written sentence can use natural English, Roman Hindi or Roman Gujarati category wording. Entity, category, single-sentence and unsupported-claim validation runs before generated data is accepted.
+These first-person fill-in templates were generated through the Gemini API during private server-side maintenance. Public model metadata: kind customer-pov-template; provider google-gemini; model {model}; generated at {generated_at}. The generated manifest contains accepted text and non-secret provenance only. The browser selects prepared templates from the published catalog; it does not call Gemini, load a server module or receive an API key. The template label and unresolved fields distinguish a hypothetical grammatical frame from a real testimonial.
 
-A connected AI research task is scheduled separately from the static page to refresh Google keyword research and run the maintenance generation every 15 days. Gemini requires GEMINI_API_KEY in the private process environment or ignored private .env file. Those private credentials are never included in this ZIP, public source, generated text or browser bundle. If private configuration, API access or validation is unavailable, the maintenance step preserves the existing published data and reports the failure. A schedule is not proof that an unattended Gemini request has already run.
+The literal observed search phrase stays in keyword evidence, while each model-written template can use natural English, Roman Hindi or Roman Gujarati wording. Entity, category, single-sentence, exact-slot and ungrounded-claim validation runs before generated data is accepted. Keyword evidence never supplies customer experiences.
+
+A connected AI research task is scheduled separately from the static page to refresh Google keyword research and run maintenance generation on its configured ChatGPT Tasks schedule. Its timing is managed outside the repository; see AUTOMATION.md for the observed configuration and the earlier cadence request. Gemini requires GEMINI_API_KEY in the private process environment or ignored private .env file. Those private credentials are never included in this ZIP, public source, generated text or browser bundle. If private configuration, API access or validation is unavailable, the maintenance step preserves the existing published data and reports the failure. A schedule is not proof that an unattended Gemini request has already run.
 
 Recorded generation usage: {usage.get('requests', 'not recorded')} requests; {usage.get('inputTokens', 'not recorded')} input tokens; {usage.get('outputTokens', 'not recorded')} output tokens. These metadata values describe the recorded API run, not a cost or quota guarantee; resumed sentences can come from earlier requests. Usage scope: {usage.get('scope', 'not recorded')}; resumed entries: {usage.get('resumedEntries', 'not recorded')}.
 
@@ -123,7 +126,7 @@ Google Autocomplete predictions are keyword ideas, not measured trending or popu
 Selected terms:
 {terms}
 
-Suggested text does not invent customer visits, purchases, ratings, staff/service experiences, stock confirmation or praise, and makes no search-ranking or automation-detection guarantee. Customers can edit the sentence to match their actual visit. Google controls rating, pasting and posting in its own app; these native steps remain manual.
+The clearly marked template leaves personal details and feedback unresolved; no actual visit, purchase, recipient, rating, staff/service experience, stock confirmation or praise is verified or invented. Customers must complete it using their own experience before copying. There is no search-ranking or automation-detection guarantee. Google controls rating, pasting and posting in its own app; these native steps remain manual.
 
 The navy/red business-name header is centered on desktop and mobile. The exact wide logo still requires accessible original file bytes or a downloadable URL; no replacement image has been generated. The approved brand list retains 29 verified spellings; Mont Beree, Jean Friendi and Hong Kong remain withheld pending confirmation.
 

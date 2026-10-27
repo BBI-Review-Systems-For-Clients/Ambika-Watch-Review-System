@@ -4,7 +4,7 @@ import { requestGeminiDrafts, GeminiRequestError } from '../gemini-client.js';
 
 const secret = 'test-private-api-credential';
 const contexts = [{ contextId: 'context-1', business: 'Ambika Watch & Gift', city: 'Surat', language: 'en', area: 'Varachha', brand: 'Casio', category: 'women', topic: 'ladies watches', variant: 0 }];
-const draft = { contextId: 'context-1', text: 'Casio ladies watches connect the Varachha context with Ambika Watch & Gift in Surat.', categoryPhrase: 'ladies watches' };
+const draft = { contextId: 'context-1', text: 'I came from [area: Varachha] to Ambika Watch & Gift, Surat to buy [brand: Casio] [category: ladies watches] for [recipient], and [experience].', categoryPhrase: 'ladies watches' };
 const wireDraft = { ...draft, contextId: 'd1' };
 const payload = (drafts = [wireDraft], extra = {}) => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ drafts }) }] } }], usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 40 }, ...extra });
 const ok = data => ({ ok: true, status: 200, json: async () => data });
@@ -48,12 +48,26 @@ test('Gemini transport pins the endpoint, sends the key only in its header and v
   assert.ok(!schema.categoryPhrase.enum.some(phrase => phrase.includes('Casio')));
   assert.ok(body.contents[0].parts[0].text.includes('Use ASCII Roman Gujarati only for d1.'));
   assert.deepEqual(schema.contextId.enum, ['d1']);
-  assert.ok(body.contents[0].parts[0].text.includes('never write available, offers, carries, sells, uplabdh, milti or male'));
-  assert.ok(body.contents[0].parts[0].text.includes('The area qualifies the person or their search, NEVER the watch or its origin'));
-  assert.ok(body.contents[0].parts[0].text.includes('Never write that the shop "has BRAND"'));
-  assert.ok(body.contents[0].parts[0].text.includes('a conditional clause about where someone is from does NOT license an inventory assertion'));
+  const prompt = body.contents[0].parts[0].text;
+  assert.ok(prompt.includes('CUSTOMER POV FILL-IN TEMPLATES'));
+  assert.ok(prompt.includes('hypothetical templates, not completed customer reviews'));
+  for (const slot of ['[area: AREA]', '[brand: BRAND]', '[category: PHRASE]', '[recipient]', '[experience]']) assert.ok(prompt.includes(slot));
+  assert.ok(prompt.includes('NEVER fill recipient with papa, friend or any other person'));
+  assert.ok(prompt.includes('NEVER fill experience with praise, criticism, staff, prices, satisfaction'));
+  assert.ok(prompt.includes('Roman Hindi for hi, and Roman Gujarati for gu'));
+  assert.ok(prompt.includes('place the area slot BEFORE the brand slot'));
   assert.ok(request.options.signal instanceof AbortSignal);
   assert.deepEqual(result, { entries: [draft], usage: { inputTokens: 120, outputTokens: 40 } });
+});
+
+test('legacy descriptive mode remains explicit while new requests default to customer POV templates', async () => {
+  await requestGeminiDrafts({ contexts, apiKey: secret, kind: 'business-context-draft', fetchImpl: async (_, options) => {
+    const prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    assert.ok(prompt.includes('editable business-context suggestions, not verified customer testimony'));
+    assert.ok(prompt.includes('never write available, offers, carries, sells, uplabdh, milti or male'));
+    assert.ok(!prompt.includes('CUSTOMER POV FILL-IN TEMPLATES'));
+    return ok(payload());
+  } });
 });
 
 test('request-local aliases map reordered replies and retry feedback back to canonical IDs', async () => {
@@ -80,7 +94,7 @@ test('missing credentials, invalid models and duplicate contexts fail before any
   const fetchImpl = async () => { requests++; throw new Error('Must not fetch'); };
   for (const overrides of [
     { apiKey: undefined }, { apiKey: '' }, { apiKey: ' secret ' }, { apiKey: 'secret\nheader' },
-    { model: '../other-service' }, { model: 'gemini?key=secret' }, { timeoutMs: 0 },
+    { model: '../other-service' }, { model: 'gemini?key=secret' }, { timeoutMs: 0 }, { kind: 'unverified-customer-review' },
     { revisionGuidance: null }, { revisionGuidance: 'x'.repeat(4001) }, { revisionGuidance: `Provider printed ${secret}` },
     { contexts: [] }, { contexts: [contexts[0], contexts[0]] }, { contexts: [{ ...contexts[0], language: 'unknown' }] },
   ]) {

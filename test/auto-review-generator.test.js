@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { BUSINESS_PROFILE, buildReviewCatalog, buildReviewContexts, validateGeminiDrafts } from '../business-profile.js';
+import { BUSINESS_PROFILE, CUSTOMER_POV_KIND, CUSTOMER_POV_SLOTS, buildReviewCatalog, buildReviewContexts, validateGeminiDrafts } from '../business-profile.js';
 import { REVIEW_CATALOG } from '../review-catalog.js';
 import { BRAND_NAMES } from '../review-core.js';
 import { createAutomaticReviewGenerator } from '../auto-review-generator.js';
@@ -31,6 +31,163 @@ function makeManifest(contexts) {
     }),
   };
 }
+
+function makePovManifest(contexts) {
+  const manifest = makeManifest(contexts);
+  manifest.kind = CUSTOMER_POV_KIND;
+  manifest.entries = contexts.map(context => {
+    const area = `[area: ${context.area}]`;
+    const product = `[brand: ${context.brand}] [category: ${context.topic}]`;
+    const business = `${context.business}, ${context.city}`;
+    const variant = Math.floor(context.variant / BUSINESS_PROFILE.servingAreas.length) % 8;
+    const templates = {
+      en: [
+        `I came from ${area} to ${business} to buy ${product} for [recipient], and [experience].`,
+        `I went from ${area} to ${business} to choose ${product} for [recipient], and [experience].`,
+        `From ${area}, I visited ${business} to buy ${product} for [recipient], and [experience].`,
+        `I travelled from ${area} to ${business} to pick ${product} for [recipient], and [experience].`,
+        `We came from ${area} to ${business} to look at ${product} for [recipient], and [experience].`,
+        `We went from ${area} to ${business} to buy ${product} for [recipient], and [experience].`,
+        `After coming from ${area}, I stopped at ${business} to buy ${product} for [recipient], and [experience].`,
+        `I visited ${business} from ${area} to choose ${product} for [recipient], and [experience].`,
+      ],
+      hi: [
+        `Main ${area} se [recipient] ke liye ${product} lene ${business} aaya tha aur [experience].`,
+        `${area} se main ${business} mein [recipient] ke liye ${product} lene gaya tha aur [experience].`,
+        `Hum ${area} se [recipient] ke liye ${product} lene ${business} gaye the aur [experience].`,
+        `Main [recipient] ke liye ${product} lene ${area} se ${business} gaya tha aur [experience].`,
+        `${area} se hum ${business} par [recipient] ke liye ${product} lene aaye the aur [experience].`,
+        `Main ${area} se ${business} par ${product} dekhne [recipient] ke liye gaya tha aur [experience].`,
+        `Hum [recipient] ke liye ${product} dekhne ${area} se ${business} aaye the aur [experience].`,
+        `Main ${area} se ${business} mein [recipient] ke liye ${product} kharidne aaya tha aur [experience].`,
+      ],
+      gu: [
+        `Hu ${area} thi [recipient] mate ${product} leva ${business} aavyo hato ane [experience].`,
+        `${area} thi hu ${business} ma [recipient] mate ${product} leva gayo hato ane [experience].`,
+        `Ame ${area} thi [recipient] mate ${product} leva ${business} aavya hata ane [experience].`,
+        `Hu [recipient] mate ${product} leva ${area} thi ${business} gayo hato ane [experience].`,
+        `${area} thi ame ${business} par [recipient] mate ${product} leva aavya hata ane [experience].`,
+        `Hu ${area} thi ${business} par ${product} jova [recipient] mate gayo hato ane [experience].`,
+        `Ame [recipient] mate ${product} jova ${area} thi ${business} aavya hata ane [experience].`,
+        `Hu ${area} thi ${business} ma [recipient] mate ${product} kharidva aavyo hato ane [experience].`,
+      ],
+    };
+    return { contextId: context.contextId, categoryPhrase: context.topic, text: templates[context.language][variant] };
+  });
+  return manifest;
+}
+
+test('explicit customer POV mode produces first-person templates with five unresolved factual slots', () => {
+  const contexts = buildReviewContexts({ research });
+  const manifest = makePovManifest(contexts);
+  const entries = validateGeminiDrafts(contexts, manifest);
+  const catalog = buildReviewCatalog({ research, generated: manifest });
+  assert.equal(entries.length, 500);
+  assert.equal(catalog.length, 500);
+  for (let index = 0; index < entries.length; index++) {
+    assert.equal(entries[index].kind, CUSTOMER_POV_KIND);
+    assert.deepEqual(entries[index].templateSlots, CUSTOMER_POV_SLOTS);
+    assert.ok(Object.isFrozen(entries[index].templateSlots));
+    assert.equal(catalog[index].kind, CUSTOMER_POV_KIND);
+    assert.deepEqual(catalog[index].templateSlots, CUSTOMER_POV_SLOTS);
+    assert.equal(entries[index].text.match(/\[[^\[\]]+\]/g)?.length, 5);
+    assert.ok(entries[index].text.includes(`[area: ${contexts[index].area}]`));
+    assert.ok(entries[index].text.includes(`[brand: ${contexts[index].brand}]`));
+    assert.ok(entries[index].text.includes(`[category: ${entries[index].categoryPhrase}]`));
+    assert.ok(entries[index].text.includes('[recipient]'));
+    assert.ok(entries[index].text.includes('[experience]'));
+  }
+});
+
+test('template mode rejects filled or malformed slots and invented personal judgements', () => {
+  const contexts = [buildReviewContexts({ research })[0]];
+  const manifest = makePovManifest(contexts);
+  const original = manifest.entries[0].text;
+  for (const replacement of [
+    original.replace('[recipient]', 'my papa'),
+    original.replace('[experience]', 'the staff was helpful'),
+    original.replace('[experience]', '[experience: good prices]'),
+    original.replace('[experience]', '[experience] and the prices were reasonable'),
+    original.replace('[experience]', '[experience] and it was good'),
+    original.replace('[experience]', '[experience] and it cost 2000'),
+    original.replace('[experience]', '[experience] after a friendly welcome'),
+    original.replace('[experience]', 'I loved it, [experience]'),
+    original.replace('[experience]', 'after a wonderful welcome, [experience]'),
+    original.replace('[experience]', 'I was delighted, [experience]'),
+    original.replace('[experience]', '[experience] for a birthday'),
+    original.replace('[area: Varachha]', 'Varachha'),
+    original.replace('[brand: Casio]', 'Casio'),
+    original.replace('[category: ladies watches]', 'ladies watches'),
+    original.replace('[recipient]', '[recipient] [recipient]'),
+    original.replace('[recipient]', '[recipient'),
+    original.replace('[recipient]', '[[recipient]]'),
+    original.replace('[recipient]', '[unknown]'),
+    original.replace('I came', 'People came'),
+    original.replace('[experience]', '[experience] અને'),
+    original.replace('I came', 'I’ve come'),
+  ]) {
+    const bad = clone(manifest); bad.entries[0].text = replacement;
+    assert.throws(() => validateGeminiDrafts(contexts, bad), replacement);
+  }
+  const descriptive = clone(manifest); delete descriptive.kind;
+  assert.throws(() => validateGeminiDrafts(contexts, descriptive), /Invalid one-sentence/);
+  const unknown = clone(manifest); unknown.kind = 'unverified-customer-review';
+  assert.throws(() => validateGeminiDrafts(contexts, unknown), /unsupported kind/);
+});
+
+test('customer POV scaffold vocabulary accepts neutral Roman grammar and rejects feedback in every language', () => {
+  const allContexts = buildReviewContexts({ research });
+  for (const language of ['en', 'hi', 'gu']) {
+    const context = allContexts.find(item => item.language === language);
+    const manifest = makePovManifest([context]);
+    const original = manifest.entries[0].text;
+    assert.equal(validateGeminiDrafts([context], manifest).length, 1);
+    const feedback = { en: ['loved', 'wonderful', 'delighted', 'enjoyed'], hi: ['maza', 'khush', 'zabardast'], gu: ['gamyu', 'khushi', 'jordar'] }[language];
+    for (const word of feedback) {
+      const bad = clone(manifest);
+      bad.entries[0].text = `${word} ${original}`;
+      assert.throws(() => validateGeminiDrafts([context], bad), error => error.message.includes('outside-slot words') && error.message.includes(word));
+    }
+  }
+});
+
+test('recipient describes the purchase and the experience remains a separate final clause', () => {
+  const allContexts = buildReviewContexts({ research });
+  for (const language of ['en', 'hi', 'gu']) {
+    const context = allContexts.find(item => item.language === language);
+    const manifest = makePovManifest([context]);
+    const original = manifest.entries[0].text;
+    const link = { en: 'for [recipient]', hi: '[recipient] ke liye', gu: '[recipient] mate' }[language];
+    const bad = clone(manifest);
+    bad.entries[0].text = original.replace(link, '').replace('[experience]', `${link} [experience]`);
+    assert.throws(() => validateGeminiDrafts([context], bad), /attach recipient/);
+    bad.entries[0].text = original.replace('[experience].', '[experience] there.');
+    assert.throws(() => validateGeminiDrafts([context], bad), /final experience clause/);
+  }
+});
+
+test('area remains customer origin and Gujarati visit clauses do not repeat', () => {
+  const contexts = buildReviewContexts({ research });
+  for (const language of ['en', 'hi', 'gu']) {
+    const context = contexts.find(item => item.language === language);
+    const manifest = makePovManifest([context]);
+    const original = manifest.entries[0].text;
+    manifest.entries[0].text = language === 'en' ? original.replace('from [area:', 'in [area:')
+      : original.replace(`] ${language === 'hi' ? 'se' : 'thi'}`, `] ${language === 'hi' ? 'mein' : 'ma'}`);
+    assert.throws(() => validateGeminiDrafts([context], manifest), /coming from/);
+    if (language === 'gu') {
+      manifest.entries[0].text = original.replace('ane [experience]', 'ane jova aavyo hato ane [experience]');
+      assert.throws(() => validateGeminiDrafts([context], manifest), /one clear visit/);
+    }
+  }
+});
+
+test('a customer experience template describes a past visit instead of a future plan', () => {
+  const context = buildReviewContexts({ research }).find(item => item.language === 'en');
+  const manifest = makePovManifest([context]);
+  manifest.entries[0].text = manifest.entries[0].text.replace('I came', 'I plan to come');
+  assert.throws(() => validateGeminiDrafts([context], manifest), /past visit/);
+});
 
 // A refresh can change grammar and wording, but not the required business context.
 test('the published pool contains 500 unique validated one-sentence drafts', () => {
