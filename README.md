@@ -74,6 +74,19 @@ Use HTTP locally, not a file URL, for modules. Clipboard access requires HTTPS o
 
 The automated tests cover Gemini transport/timeout/error sanitization, template output and atomic failure handling, keyword evidence, the five required slots, ungrounded claims outside slots, catalog uniqueness and mix, initial display, unresolved or unmatched brackets, programmatic submit guards, negative customer feedback, refresh exclusion, storage privacy, editing, clipboard failure, Android handoff and page lifecycle. DOM/navigation stubs do not verify native Maps review-composer behavior. No Google reviews are submitted during tests.
 
+## Reusable open-source tooling
+
+The repository also includes an experimental, business-independent
+[Customer Draft Guard](packages/customer-draft-guard/README.md). It provides
+dependency-free JavaScript checks for editable feedback template fields and
+unresolved placeholders, without generating or submitting reviews. The module
+has its own tests and TypeScript declarations; it is source-available under
+Apache-2.0 and is **not published to a package registry**.
+
+Developers interested in improving the shared safeguards can read the
+[contribution guide](CONTRIBUTING.md). Secret-free GitHub Actions checks run the
+existing application test suite on pushes to `main` and pull requests.
+
 ## Deployment and backups
 
 Only `BBI-Review-Systems-For-Clients/Ambika-Watch-Review-System` is modified. GitHub Pages publishes `main` at `/(root)` with HTTPS. `bash deploy-github.sh` validates the account, exact repository ID, branch and remote before checking and pushing without force.
