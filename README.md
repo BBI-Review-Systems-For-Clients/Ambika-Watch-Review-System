@@ -89,6 +89,6 @@ The 11 served runtime/data files, including the Gemini manifest, are verified ag
 
 ## License
 
-The original source code and documentation in this repository are available under the [MIT License](LICENSE). Copyright (c) 2026 Ankit Vaghasiya.
+The original source code and documentation in this repository are licensed under the [Apache License, Version 2.0](LICENSE) (SPDX: `Apache-2.0`). Copyright (c) 2026 Ankit Vaghasiya.
 
 The license does not grant trademark rights to the names of Ambika Watch & Gift or third-party product brands, rights to third-party services or data, or rights to customer-authored feedback. Those remain with their respective owners.
