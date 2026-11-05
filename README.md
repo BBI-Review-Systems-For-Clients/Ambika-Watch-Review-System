@@ -86,3 +86,9 @@ python3 scripts/build-delivery.py --out work/delivery
 ```
 
 The 11 served runtime/data files, including the Gemini manifest, are verified against the committed source. The ZIP, standalone preview and notes replace the existing Drive deliverables. Other repositories, custom domains and the client's read-only source folder are not changed.
+
+## License
+
+The original source code and documentation in this repository are available under the [MIT License](LICENSE). Copyright (c) 2026 Ankit Vaghasiya.
+
+The license does not grant trademark rights to the names of Ambika Watch & Gift or third-party product brands, rights to third-party services or data, or rights to customer-authored feedback. Those remain with their respective owners.
