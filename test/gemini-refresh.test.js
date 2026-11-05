@@ -11,7 +11,7 @@ import {generateGeminiManifest,refreshGeminiFile} from '../scripts/refresh-gemin
 const contexts=buildReviewContexts().filter(x=>x.language==='en'&&x.category==='women').slice(0,3);
 const model='gemini-2.5-flash';
 const key='test-private-credential';
-const row=context=>({contextId:context.contextId,text:`I came from [area: ${context.area}] to Ambika Watch & Gift, Surat to buy [brand: ${context.brand}] [category: ladies watches] for [recipient], and [experience].`,categoryPhrase:'ladies watches'});
+const row=context=>({contextId:context.contextId,text:`I came from [area: ${context.area}] to Ambika Watch & Gift, Surat to buy ${/s$/.test(context.categoryPhrase)?'':'a '}[category: ${context.categoryPhrase}] for [recipient], and [experience].`,categoryPhrase:context.categoryPhrase});
 const response=input=>({entries:input.map(row),usage:{inputTokens:100,outputTokens:50}});
 
 async function temporaryFile(t){
@@ -26,6 +26,7 @@ test('validated Gemini refresh stages complete context-ordered sentences and non
  const result=await generateGeminiManifest({contexts,apiKey:key,model,batchSize:2,request:async({contexts:input})=>response(input)});
  assert.equal(result.entries.length,3);
  assert.equal(result.kind,'customer-pov-template');
+ assert.equal(result.schemaVersion,2);
  assert.deepEqual(result.entries.map(x=>x.contextId),contexts.map(x=>x.contextId));
  assert.equal(result.usage.requests,2);
  assert.equal(result.usage.inputTokens,200);
@@ -67,16 +68,28 @@ test('successful refresh replaces the staged file only after all contexts pass',
  await assert.rejects(readFile(target+'.pending'),{code:'ENOENT'});
 });
 
+test('a rejected early batch does not discard valid later batches or replace published content',async t=>{
+ const target=await temporaryFile(t);const original='previous published content\n';await writeFile(target,original);
+ const checkpoints=[];let calls=0;
+ await assert.rejects(refreshGeminiFile({outputPath:target,contexts:contexts.slice(0,2),apiKey:key,model,batchSize:1,maxAttempts:1,
+  onCheckpoint:async value=>checkpoints.push(value),request:async({contexts:input})=>{
+   calls++;const result=response(input);if(input[0].contextId===contexts[0].contextId)result.entries[0].text='Invalid draft.';return result;
+  }}),/invalid sentences across/);
+ assert.equal(calls,2);
+ assert.deepEqual(checkpoints.at(-1).entries.map(x=>x.contextId),[contexts[1].contextId]);
+ assert.equal(await readFile(target,'utf8'),original);
+});
+
 test('valid private checkpoints resume without calling Gemini again for accepted contexts',async()=>{
- const checkpoint={kind:'customer-pov-template',contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])]};
+ const checkpoint={schemaVersion:2,kind:'customer-pov-template',contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])]};
  let requested;
  const result=await generateGeminiManifest({contexts,apiKey:key,model,checkpoint,request:async({contexts:input})=>{requested=input;return response(input);}});
  assert.deepEqual(requested.map(x=>x.contextId),contexts.slice(1).map(x=>x.contextId));
  assert.equal(result.entries.length,3);
 });
 
-test('descriptive-mode checkpoints cannot resume into the customer-POV catalog',async()=>{
- const checkpoint={contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])],activeModel:'gemini-3.1-flash-lite'};
+test('old five-field checkpoints cannot resume into the four-field catalog',async()=>{
+ const checkpoint={schemaVersion:1,kind:'customer-pov-template',contextHash:createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),model,entries:[row(contexts[0])],activeModel:'gemini-3.1-flash-lite'};
  let requested;
  const result=await generateGeminiManifest({contexts,apiKey:key,model,checkpoint,request:async({contexts:input,model:requestedModel})=>{
   requested=input;assert.equal(requestedModel,model);return response(input);

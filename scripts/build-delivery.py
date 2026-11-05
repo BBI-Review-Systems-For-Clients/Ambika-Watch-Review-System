@@ -76,12 +76,12 @@ def read_gemini_manifest():
     if not target.is_file():
         raise RuntimeError('Validated gemini-drafts.json is required before building this delivery')
     manifest = json.loads(target.read_text(encoding='utf-8'))
-    if (manifest.get('schemaVersion') != 1 or manifest.get('provider') != 'google-gemini'
+    if (manifest.get('schemaVersion') != 2 or manifest.get('provider') != 'google-gemini'
             or manifest.get('kind') != 'customer-pov-template'
             or not isinstance(manifest.get('model'), str) or not manifest['model']
             or not isinstance(manifest.get('generatedAt'), str) or not manifest['generatedAt']
             or not isinstance(manifest.get('entries'), list) or len(manifest['entries']) != 500):
-        raise RuntimeError('Expected a validated 500-template customer-POV Gemini manifest with model and generation date')
+        raise RuntimeError('Expected a validated version-2 500-template customer-POV Gemini manifest with model and generation date')
     return manifest
 
 
@@ -104,13 +104,13 @@ SOURCE: {SOURCE_URL}
 Commit: {commit}
 Verified at: {report.get('verifiedAt')}
 
-The page opens with one clearly labeled, editable customer-POV template and one Copy & Leave Review action, without selectors. Every generated template is exactly ONE first-person sentence containing Ambika Watch & Gift and Surat, with five unresolved fields: [area: suggested area], [brand: suggested brand], [category: category phrase], [recipient] and [experience]. Area/brand/category examples occur only inside their editable brackets. They do not establish what the customer bought or where they live; Onex is the only clock-brand example. There is no generic second product sentence.
+The page opens with one clearly labeled, editable customer-POV template and one Copy & Leave Review action, without selectors. Every generated template is exactly ONE first-person sentence containing Ambika Watch & Gift and Surat, with four unresolved fields: [area: suggested area], [category: category phrase], [recipient] and [experience]. Area/category examples occur only inside their editable brackets. They do not establish what the customer bought or where they live. There is no brand field or third-party watch or clock brand name in generated templates or context data. There is no generic second product sentence.
 
 Customers replace ALL bracketed fields with real details, or delete anything inapplicable, before copying. The recipient can be a parent, friend or the customer; staff, pricing and overall experience must come from their actual visit and can include criticism. Copy is disabled while any opening or closing bracket remains, and programmatic submit is independently checked before copying or Google navigation. No invented relative, completed purchase, staff praise, satisfaction or price claim is inserted as fact.
 
 The catalog contains 500 unique templates: 270 women's-watch, 180 men's-watch and 50 wall-clock topics; 200 English, 150 Roman Hindi and 150 Roman Gujarati. Refreshing uses a new random template, excluding the previous ID when session storage is available. Only an opaque catalog ID is stored; customer words stay in the editor and are not transmitted by this page.
 
-These first-person fill-in templates were generated through the Gemini API during private server-side maintenance. Public model metadata: kind customer-pov-template; provider google-gemini; model {model}; generated at {generated_at}. The generated manifest contains accepted text and non-secret provenance only. The browser selects prepared templates from the published catalog; it does not call Gemini, load a server module or receive an API key. The template label and unresolved fields distinguish a hypothetical grammatical frame from a real testimonial.
+These first-person fill-in templates were generated through the Gemini API during private server-side maintenance. Public model metadata: schema version 2; kind customer-pov-template; provider google-gemini; model {model}; generated at {generated_at}. The generated manifest contains accepted text and non-secret provenance only. The browser selects prepared templates from the published catalog; it does not call Gemini, load a server module or receive an API key. The template label and unresolved fields distinguish a hypothetical grammatical frame from a real testimonial.
 
 The literal observed search phrase stays in keyword evidence, while each model-written template can use natural English, Roman Hindi or Roman Gujarati wording. Entity, category, single-sentence, exact-slot and ungrounded-claim validation runs before generated data is accepted. Keyword evidence never supplies customer experiences.
 
@@ -120,15 +120,15 @@ Recorded generation usage: {usage.get('requests', 'not recorded')} requests; {us
 
 Current keyword research timestamp: {research.get('researchedAt')}
 Selected keyword phrases: {len(selected)} ({source_summary})
-Google Trends feed status: {trend_status}; verified relevant trend matches: {len(relevant)}.
-Google Autocomplete predictions are keyword ideas, not measured trending or popularity data. When no relevant watch trend is verified, predictions or approved evergreen phrases remain explicitly labeled. Every observed phrase retains its source type, URL and retrieval time in keyword-research.json; evergreen fallbacks have no fabricated external provenance.
+Google Trends feed status: {trend_status}; full screened feed entries: {research.get('trends', {}).get('observedCount', 'not recorded')}; verified approved trend matches: {len(relevant)}.
+Google Autocomplete predictions are keyword ideas, not measured trending or popularity data. When no relevant watch trend is verified, predictions or approved evergreen phrases remain explicitly labeled. Public observation lists retain approved candidate matches only; observedCount describes the full screened response and retainedCount describes the retained prediction subset. An empty retained list is not an empty Google feed. A Trends label requires a literal match published within 48 hours before retrieval, allowing at most one hour of future clock difference. Every observed phrase retains its source type, URL and retrieval time in keyword-research.json; evergreen fallbacks have no fabricated external provenance.
 
 Selected terms:
 {terms}
 
 The clearly marked template leaves personal details and feedback unresolved; no actual visit, purchase, recipient, rating, staff/service experience, stock confirmation or praise is verified or invented. Customers must complete it using their own experience before copying. There is no search-ranking or automation-detection guarantee. Google controls rating, pasting and posting in its own app; these native steps remain manual.
 
-The navy/red business-name header is centered on desktop and mobile. The exact wide logo still requires accessible original file bytes or a downloadable URL; no replacement image has been generated. The approved brand list retains 29 verified spellings; Mont Beree, Jean Friendi and Hong Kong remain withheld pending confirmation.
+The navy/red business-name header is centered on desktop and mobile. The exact wide logo still requires accessible original file bytes or a downloadable URL; no replacement image has been generated. All third-party watch and clock brand names and the old brand field have been removed from generated text and configuration; the business-name header remains Ambika Watch & Gift.
 
 {test_line}
 The eleven deployed runtime/data files return HTTP 200 and match committed HEAD bytes. HTTP/source verification does not establish browser behavior, native Android review-composer behavior or review submission.

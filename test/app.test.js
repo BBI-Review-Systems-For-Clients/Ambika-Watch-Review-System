@@ -83,9 +83,10 @@ test('the page immediately loads a clearly marked editable customer POV template
   assert.match(editor.value, /Surat/);
   assert.ok(editor.value.includes(app.draft.keyword));
   assert.ok(editor.value.includes(app.draft.area));
-  assert.ok(editor.value.includes(app.draft.brand));
+  assert.equal(Object.hasOwn(app.draft, 'brand'), false);
   assert.match(editor.value, /\[area: /u);
-  assert.match(editor.value, /\[brand: /u);
+  assert.doesNotMatch(editor.value, /\[brand(?::|\])/u);
+  assert.equal(editor.value.match(/\[[^\[\]]+\]/gu)?.length, 4);
   assert.match(editor.value, /\[category: /u);
   assert.match(editor.value, /\[recipient\]/u);
   assert.match(editor.value, /\[experience\]/u);
@@ -106,7 +107,7 @@ test('the page immediately loads a clearly marked editable customer POV template
   assert.equal(doc.querySelectorAll('.primary-button, button[type="submit"]').length, 1);
   assert.equal(doc.querySelectorAll('button').length, 1);
   assert.equal(doc.querySelector('select, option, details, [data-experience], [name="rating"], [role="radio"], input[type="radio"]'), null);
-  assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, #personalize-review, #language, #product, #brand, .paste-help'), null);
+  assert.equal(doc.querySelector('#polish-review, #refresh-draft, #direct-google, #personalize-review, #language, #product, .paste-help'), null);
   assert.doesNotMatch(doc.body.textContent, /real.time AI|on.device AI|polish review|refresh draft|personalize your review/i);
 });
 
@@ -144,7 +145,7 @@ test('unfilled or partly removed slots block button and programmatic submits bef
   // Scripted submission must also check an edit that did not fire an input event.
   type('I browsed watches for my father.');
   assert.equal($('copy-open').disabled, false);
-  $('review-text').value = 'I bought [brand: Titan] for my father.';
+  $('review-text').value = 'I bought [category: gents watch] for my father.';
   submit();
   await settle();
   assert.equal($('copy-open').disabled, true);
@@ -347,10 +348,10 @@ test('a navigation error preserves the review and supports retry without copying
       destinations.push(url);
     },
   });
-  type('I only browsed Casio watches.');
+  type('I only browsed watches.');
   submit();
   await settle();
-  assert.equal($('review-text').value, 'I only browsed Casio watches.');
+  assert.equal($('review-text').value, 'I only browsed watches.');
   assert.equal($('status').textContent, COPY.openFailed);
   assert.equal($('status').dataset.tone, 'error');
   assert.equal($('copy-open').textContent.trim(), COPY.leaveReview);
@@ -448,7 +449,7 @@ test('expired Android activation after async copying waits for another tap witho
       });
     },
   });
-  type('The staff helped me browse Casio watches.');
+  type('The staff helped me browse watches.');
   submit();
   activation.isActive = false;
   finishCopy();
@@ -495,16 +496,16 @@ test('restoring a template slot after Android launch blocks handoff until the re
       doc.execCommand = () => { copies++; return true; };
     },
   });
-  type('I browsed Titan watches for my father.');
+  type('I browsed watches for my father.');
   submit();
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
-  type('I browsed Titan watches for [recipient].');
+  type('I browsed watches for [recipient].');
   assert.equal($('copy-open').disabled, true);
   submit();
   assert.equal($('status').textContent, COPY.incomplete);
   assert.equal(copies, 1);
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT]);
-  type('I browsed Titan watches for my friend.');
+  type('I browsed watches for my friend.');
   submit();
   assert.equal(copies, 2);
   assert.deepEqual(destinations, [ANDROID_MAPS_INTENT, ANDROID_MAPS_INTENT]);

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { requestGeminiDrafts, GeminiRequestError } from '../gemini-client.js';
+import { CATEGORY_PHRASES } from '../review-core.js';
 
 const secret = 'test-private-api-credential';
-const contexts = [{ contextId: 'context-1', business: 'Ambika Watch & Gift', city: 'Surat', language: 'en', area: 'Varachha', brand: 'Casio', category: 'women', topic: 'ladies watches', variant: 0 }];
-const draft = { contextId: 'context-1', text: 'I came from [area: Varachha] to Ambika Watch & Gift, Surat to buy [brand: Casio] [category: ladies watches] for [recipient], and [experience].', categoryPhrase: 'ladies watches' };
+const contexts = [{ contextId: 'context-1', business: 'Ambika Watch & Gift', city: 'Surat', language: 'en', area: 'Varachha', category: 'women', topic: 'ladies watches', variant: 0, categoryPhrase: 'ladies watches', styleIndex: 0 }];
+const draft = { contextId: 'context-1', text: 'I came from [area: Varachha] to Ambika Watch & Gift, Surat to buy [category: ladies watches] for [recipient], and [experience].', categoryPhrase: 'ladies watches' };
 const wireDraft = { ...draft, contextId: 'd1' };
 const payload = (drafts = [wireDraft], extra = {}) => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ drafts }) }] } }], usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 40 }, ...extra });
 const ok = data => ({ ok: true, status: 200, json: async () => data });
@@ -22,9 +23,9 @@ function isSafeError(code, status) {
 
 test('Gemini transport pins the endpoint, sends the key only in its header and validates complete IDs', async () => {
   let request;
-  const result = await requestGeminiDrafts({ contexts: [{ ...contexts[0], privateExtraField: 'not part of the model context' }], apiKey: secret, revisionGuidance: 'Use ASCII Roman Gujarati only for context-1.', fetchImpl: async (url, options) => {
+  const result = await requestGeminiDrafts({ contexts: [{ ...contexts[0], privateExtraField: 'not part of the model context', brand: 'discard-this-field' }], apiKey: secret, revisionGuidance: 'Use ASCII Roman Gujarati only for context-1.', fetchImpl: async (url, options) => {
     request = { url, options };
-    return ok(payload());
+    return ok(payload([{ ...wireDraft, brand: 'discard-response-field' }]));
   } });
   assert.equal(request.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
   assert.equal(request.options.method, 'POST');
@@ -32,6 +33,8 @@ test('Gemini transport pins the endpoint, sends the key only in its header and v
   assert.ok(!request.url.includes(secret));
   assert.ok(!request.options.body.includes(secret));
   assert.ok(!request.options.body.includes('not part of the model context'));
+  assert.ok(!request.options.body.includes('discard-this-field'));
+  assert.ok(!request.options.body.includes('\"brand\"'));
   assert.ok(!request.options.body.includes('context-1'));
   assert.ok(request.options.body.includes('d1'));
   const body = JSON.parse(request.options.body);
@@ -45,29 +48,32 @@ test('Gemini transport pins the endpoint, sends the key only in its header and v
   assert.equal(new RegExp(schema.text.pattern).test('Gujarati ગુજરાતી.'), false);
   assert.equal(new RegExp(schema.text.pattern).test('Missing terminal punctuation'), false);
   assert.ok(schema.categoryPhrase.enum.includes('ladies watches'));
-  assert.ok(!schema.categoryPhrase.enum.some(phrase => phrase.includes('Casio')));
+  assert.deepEqual(schema.categoryPhrase.enum, [...CATEGORY_PHRASES]);
+  assert.ok(schema.categoryPhrase.enum.every(phrase => /watch|clock/.test(phrase)));
+  assert.equal('brand' in schema, false);
   assert.ok(body.contents[0].parts[0].text.includes('Use ASCII Roman Gujarati only for d1.'));
   assert.deepEqual(schema.contextId.enum, ['d1']);
   const prompt = body.contents[0].parts[0].text;
   assert.ok(prompt.includes('CUSTOMER POV FILL-IN TEMPLATES'));
   assert.ok(prompt.includes('hypothetical templates, not completed customer reviews'));
-  for (const slot of ['[area: AREA]', '[brand: BRAND]', '[category: PHRASE]', '[recipient]', '[experience]']) assert.ok(prompt.includes(slot));
+  for (const slot of ['[area: AREA]', '[category: PHRASE]', '[recipient]', '[experience]']) assert.ok(prompt.includes(slot));
   assert.ok(prompt.includes('NEVER fill recipient with papa, friend or any other person'));
   assert.ok(prompt.includes('NEVER fill experience with praise, criticism, staff, prices, satisfaction'));
   assert.ok(prompt.includes('Roman Hindi for hi, and Roman Gujarati for gu'));
-  assert.ok(prompt.includes('place the area slot BEFORE the brand slot'));
+  assert.ok(prompt.includes('place the area slot BEFORE THE BUSINESS NAME'));
+  assert.ok(prompt.includes('exactly these FOUR bracket slots'));
+  assert.ok(!prompt.includes('[brand:'));
+  assert.ok(prompt.includes('Return categoryPhrase EXACTLY as supplied'));
+  assert.ok(prompt.includes('styleIndex'));
+  assert.ok(prompt.includes('Do not include any watch or clock brand names'));
   assert.ok(request.options.signal instanceof AbortSignal);
   assert.deepEqual(result, { entries: [draft], usage: { inputTokens: 120, outputTokens: 40 } });
 });
 
-test('legacy descriptive mode remains explicit while new requests default to customer POV templates', async () => {
-  await requestGeminiDrafts({ contexts, apiKey: secret, kind: 'business-context-draft', fetchImpl: async (_, options) => {
-    const prompt = JSON.parse(options.body).contents[0].parts[0].text;
-    assert.ok(prompt.includes('editable business-context suggestions, not verified customer testimony'));
-    assert.ok(prompt.includes('never write available, offers, carries, sells, uplabdh, milti or male'));
-    assert.ok(!prompt.includes('CUSTOMER POV FILL-IN TEMPLATES'));
-    return ok(payload());
-  } });
+test('legacy descriptive mode cannot bypass the brand-free template transport', async () => {
+  let requests = 0;
+  await assert.rejects(requestGeminiDrafts({ contexts, apiKey: secret, kind: 'business-context-draft', fetchImpl: async () => { requests++; return ok(payload()); } }), isSafeError('CONFIGURATION'));
+  assert.equal(requests, 0);
 });
 
 test('request-local aliases map reordered replies and retry feedback back to canonical IDs', async () => {
@@ -97,6 +103,9 @@ test('missing credentials, invalid models and duplicate contexts fail before any
     { model: '../other-service' }, { model: 'gemini?key=secret' }, { timeoutMs: 0 }, { kind: 'unverified-customer-review' },
     { revisionGuidance: null }, { revisionGuidance: 'x'.repeat(4001) }, { revisionGuidance: `Provider printed ${secret}` },
     { contexts: [] }, { contexts: [contexts[0], contexts[0]] }, { contexts: [{ ...contexts[0], language: 'unknown' }] },
+    { contexts: [{ ...contexts[0], categoryPhrase: 'wall clock' }] }, { contexts: [{ ...contexts[0], styleIndex: -1 }] },
+    { contexts: [{ ...contexts[0], styleIndex: 101 }] }, { contexts: [{ ...contexts[0], variant: 1001 }] },
+    { contexts: [{ ...contexts[0], categoryPhrase: undefined }] }, { contexts: [{ ...contexts[0], styleIndex: 1.5 }] },
   ]) {
     await assert.rejects(requestGeminiDrafts({ contexts, apiKey: secret, fetchImpl, ...overrides }), isSafeError('CONFIGURATION'));
   }

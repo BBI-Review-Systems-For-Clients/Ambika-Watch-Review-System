@@ -7,9 +7,10 @@ import { requestGeminiDrafts, GeminiRequestError } from '../gemini-client.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const DRAFT_KIND = 'customer-pov-template';
+const MANIFEST_SCHEMA = 2;
 const hashContexts = contexts => createHash('sha256').update(JSON.stringify(contexts)).digest('hex');
 const manifestFor = (contexts, entries, model) => ({
-  schemaVersion: 1, kind: DRAFT_KIND, provider: 'google-gemini', model,
+  schemaVersion: MANIFEST_SCHEMA, kind: DRAFT_KIND, provider: 'google-gemini', model,
   generatedAt: new Date().toISOString(), contextHash: hashContexts(contexts), entries,
 });
 
@@ -26,7 +27,8 @@ export async function generateGeminiManifest({
   const contextHash = hashContexts(contexts);
   const byId = new Map(contexts.map(context => [context.contextId, context]));
   const accepted = new Map();
-  let activeModel = checkpoint?.kind === DRAFT_KIND && checkpoint.model === model && typeof checkpoint.activeModel === 'string' && /^gemini-[a-z0-9.-]+$/.test(checkpoint.activeModel) ? checkpoint.activeModel : model;
+  const compatibleCheckpoint = checkpoint?.schemaVersion === MANIFEST_SCHEMA && checkpoint.kind === DRAFT_KIND && checkpoint.contextHash === contextHash && checkpoint.model === model;
+  let activeModel = compatibleCheckpoint && typeof checkpoint.activeModel === 'string' && /^gemini-[a-z0-9.-]+$/.test(checkpoint.activeModel) ? checkpoint.activeModel : model;
   const usedText = new Set();
   const usage = { requests: 0, inputTokens: 0, outputTokens: 0, resumedEntries: 0, modelsAttempted: [], scope: 'Requests attempted in this API run; token counts cover parsed successful responses only. Compatible accepted sentences may be resumed.' };
   const accept = (entry, generatedBy = model) => {
@@ -39,23 +41,24 @@ export async function generateGeminiManifest({
     usedText.add(normalized);
     return true;
   };
-  if (checkpoint?.kind === DRAFT_KIND && checkpoint.contextHash === contextHash && checkpoint.model === model && Array.isArray(checkpoint.entries)) {
+  if (compatibleCheckpoint && Array.isArray(checkpoint.entries)) {
     for (const entry of checkpoint.entries) { try { accept(entry); } catch { /* Invalid checkpoint rows are regenerated. */ } }
   }
   usage.resumedEntries = accepted.size;
-  const acceptedWordings = pending => [...accepted.values()].filter(entry => {
+  const acceptedWordings = pending => [...new Set([...accepted.values()].filter(entry => {
     const existing = byId.get(entry.contextId);
-    return pending.some(context => context.language === existing.language && context.area === existing.area && context.brand === existing.brand && context.category === existing.category);
-  }).map(entry => entry.text).slice(-12);
+    return pending.some(context => context.language === existing.language && context.area === existing.area && context.category === existing.category && context.categoryPhrase === existing.categoryPhrase);
+  }).map(entry => entry.text.replace(/\[area: [^\]]+\]/g, '[area: AREA]')))].slice(-10);
   const neutralVocabulary = pending => ` Outside the slots and exact business/city names, use ONLY these neutral ${pending[0].language} grammar words (case-insensitive): ${CUSTOMER_POV_SCAFFOLD_WORDS[pending[0].language].join(' ')}.`;
   const batches = [];
+  const unfinished = [];
   for (const language of ['en', 'hi', 'gu']) {
     const pending = contexts.filter(context => context.language === language && !accepted.has(context.contextId));
     for (let offset = 0; offset < pending.length; offset += batchSize) batches.push(pending.slice(offset, offset + batchSize));
   }
   for (let index = 0; index < batches.length; index++) {
     let pending = batches[index];
-    let revisionGuidance = 'Write a first-person customer-POV fill-in template, not shop advice. Use exactly five unresolved slots: [area: supplied area], [brand: supplied brand], [category: categoryPhrase], [recipient], [experience]. Suggested area, brand and category occur only inside their slots. Keep recipient and experience unknown; do not insert papa/friend, staff praise, price feedback or purchase details as facts. All five slots must remain editable before copying.';
+    let revisionGuidance = 'Write fresh first-person customer-POV fill-in templates with exactly four slots: [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. No product-brand name, field or placeholder is permitted. Follow the supplied styleIndex to vary full sentence grammar; use the assigned generic categoryPhrase exactly. Keep recipient and experience unresolved, with no relatives, praise, price feedback or purchase details added as facts. Existing sentence shapes below use AREA as an abstract marker: restore each context\'s exact area when writing a different sentence.';
     revisionGuidance += neutralVocabulary(pending);
     const priorWordings = acceptedWordings(pending);
     if (priorWordings.length) revisionGuidance += ` Write different surrounding grammar from these already accepted templates: ${JSON.stringify(priorWordings)}.`;
@@ -78,7 +81,7 @@ export async function generateGeminiManifest({
         const repairable = error instanceof GeminiRequestError && (['INVALID_RESPONSE', 'TRUNCATED', 'NETWORK', 'TIMEOUT'].includes(error.code) || (error.code === 'HTTP' && error.status >= 500));
         if (!repairable || attempt === maxAttempts) throw error;
         onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length });
-        revisionGuidance = 'Return valid JSON with exactly one matching contextId for EVERY requested context, ASCII Roman first-person template text and one terminal period. Include exactly the five required unresolved bracket slots with exact field names and supplied entity suggestions. Do not fill in a customer experience, recipient or praise; the customer supplies those details.';
+        revisionGuidance = 'Return valid JSON with exactly one matching contextId for EVERY requested context, ASCII Roman first-person template text and one terminal period. Include exactly the four required unresolved bracket slots and the assigned categoryPhrase; omit all product-brand names and fields. Do not fill in a customer experience, recipient or praise.';
         continue;
       }
       usage.inputTokens += result.usage?.inputTokens || 0;
@@ -89,13 +92,15 @@ export async function generateGeminiManifest({
         catch (error) { errors.push(`${entry.contextId}: ${error.message}`); }
       }
       pending = pending.filter(context => !accepted.has(context.contextId));
-      await onCheckpoint({ schemaVersion: 1, kind: DRAFT_KIND, model, activeModel, contextHash, entries: [...accepted.values()] });
-      onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length });
+      await onCheckpoint({ schemaVersion: MANIFEST_SCHEMA, kind: DRAFT_KIND, model, activeModel, contextHash, entries: [...accepted.values()] });
+      onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length,
+        validationErrors: [...new Set(errors.map(message => message.replace(/^[a-f0-9]{20}: /, '').replace(/ for [a-f0-9]{20}/g, '')))].slice(0, 3) });
       const avoid = acceptedWordings(pending);
-      revisionGuidance = `Repair the rejected contexts. Preserve exact IDs and all five bracketed fields [area: supplied area], [brand: supplied brand], [category: categoryPhrase], [recipient], [experience]. Write a different first-person customer-POV sentence with only ONE final period and ASCII Roman text. Area/brand/category appear only inside their brackets; recipient and experience remain unknown. No positive or negative feedback, relatives, price/stock or satisfaction claims outside placeholders.${neutralVocabulary(pending.length ? pending : batches[index])} Validation notes: ${errors.join('; ')}. Already accepted wordings to avoid: ${JSON.stringify(avoid)}.`.slice(0, 3900);
+      revisionGuidance = `Repair the rejected contexts with exactly four slots [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. Use fresh past-visit grammar and only ONE final period in ASCII Roman text. No product-brand names/fields/placeholders or invented feedback, relatives, prices or satisfaction. Keep the exact assigned categoryPhrase and distinguish styleIndex. AREA in existing shapes is abstract: output each context's exact area.${neutralVocabulary(pending.length ? pending : batches[index])} Validation notes: ${errors.slice(0, 8).join('; ')}. Already accepted sentence shapes to avoid: ${JSON.stringify(avoid)}.`.slice(0, 3900);
     }
-    if (pending.length) throw new Error(`Gemini batch ${index + 1} still has ${pending.length} invalid sentences; the previous published data is unchanged.`);
+    if (pending.length) unfinished.push({ batch: index + 1, count: pending.length });
   }
+  if (unfinished.length) throw new Error(`Gemini has ${unfinished.reduce((sum, item) => sum + item.count, 0)} invalid sentences across ${unfinished.length} batches; accepted private checkpoints were retained and the published data is unchanged.`);
   const entries = contexts.map(context => accepted.get(context.contextId));
   const manifest = { ...manifestFor(contexts, entries, model), modelsUsed: [...new Set(entries.map(entry => entry.model))], usage };
   validateGeminiDrafts(contexts, manifest);
@@ -136,7 +141,10 @@ async function main() {
       await mkdir(dirname(checkpointPath), { recursive: true });
       await writeFile(checkpointPath, JSON.stringify(data), { mode: 0o600 });
     },
-    onProgress: progress => console.log(`${progress.modelSwitched ? `Switching to ${progress.modelSwitched} after the primary model's quota response. ` : ''}Gemini batch ${progress.batch}/${progress.batches}, attempt ${progress.attempt}: ${progress.accepted}/${progress.total} accepted${progress.remainingInBatch ? `; repairing ${progress.remainingInBatch}` : ''}.`),
+    onProgress: progress => {
+      console.log(`${progress.modelSwitched ? `Switching to ${progress.modelSwitched} after the primary model's quota response. ` : ''}Gemini batch ${progress.batch}/${progress.batches}, attempt ${progress.attempt}: ${progress.accepted}/${progress.total} accepted${progress.remainingInBatch ? `; repairing ${progress.remainingInBatch}` : ''}.`);
+      if (progress.validationErrors?.length) console.log(`Validation: ${progress.validationErrors.join('; ')}`.replaceAll(apiKey, '[REDACTED]'));
+    },
   });
   await unlink(checkpointPath).catch(() => {});
   console.log(`Validated ${manifest.entries.length} Gemini customer-POV fill-in templates with ${manifest.modelsUsed.join(', ')}; credentials were not written to generated data.`);

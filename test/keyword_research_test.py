@@ -74,6 +74,30 @@ class KeywordResearchTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 research.validate_policy(policy)
 
+    def test_stale_unknown_or_future_feed_dates_do_not_establish_current_trends(self):
+        for published in ['Tue, 01 Sep 2026 00:00:00 GMT', '', 'Wed, 21 Oct 2026 00:00:00 GMT']:
+            def fetch(url):
+                if 'trends.google.com' in url:
+                    return rss('wall clocks').replace(b'Tue, 20 Oct 2026 00:00:00 GMT', published.encode())
+                return responses()(url)
+            result = research.collect(POLICY, fetch=fetch, now=NOW)
+            self.assertFalse(result['trends']['relevant'])
+            self.assertFalse(any(row['sourceType']=='google-trends' for row in result['selectedKeywords']))
+
+    def test_public_evidence_retains_only_approved_terms_with_full_observation_counts(self):
+        def fetch(url):
+            if 'trends.google.com' in url:
+                return rss('unrelated news')
+            query = research.urllib.parse.parse_qs(research.urllib.parse.urlparse(url).query)['q'][0]
+            return json.dumps([query, ['ladies watches','UnlistedName watches','unrelated news']]).encode()
+        result=research.collect(POLICY,fetch=fetch,now=NOW)
+        self.assertEqual(result['trends']['observed'],[])
+        self.assertEqual(result['trends']['observedCount'],1)
+        for source in result['suggestions']:
+            self.assertEqual(source['observedCount'],3)
+            self.assertEqual(source['retainedCount'],1)
+            self.assertEqual(source['terms'],['ladies watches'])
+
 
 if __name__ == '__main__':
     unittest.main()

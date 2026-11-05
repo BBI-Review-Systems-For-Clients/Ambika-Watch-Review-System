@@ -1,21 +1,159 @@
 {
   "schemaVersion": 1,
   "region": "IN",
-  "queries": ["ladies watches", "gents watches", "wall clocks", "watch shop Surat", "watch gift"],
+  "queries": [
+    "ladies watches",
+    "gents watches",
+    "wall clocks",
+    "watch shop Surat",
+    "watch gift",
+    "ladies wrist watches",
+    "gents wrist watches",
+    "hanging wall clock"
+  ],
   "candidates": [
-    {"category": "women", "term": "ladies watches", "phrase": "ladies watches"},
-    {"category": "women", "term": "ladies watches for women", "phrase": "ladies watches for women"},
-    {"category": "women", "term": "watch gift for women", "phrase": "women's watches for gifting"},
-    {"category": "men", "term": "mens watches", "phrase": "men's watches"},
-    {"category": "men", "term": "watch gift for men", "phrase": "men's watches for gifting"},
-    {"category": "clock", "term": "wall clocks", "phrase": "wall clocks"},
-    {"category": "clock", "term": "wall clocks for home", "phrase": "wall clocks for home"},
-    {"category": "clock", "term": "wall clocks for living room", "phrase": "wall clocks for living room"},
-    {"category": "clock", "term": "wall clocks for bedroom", "phrase": "wall clocks for the bedroom"}
+    {
+      "category": "women",
+      "term": "ladies watches",
+      "phrase": "ladies watches"
+    },
+    {
+      "category": "women",
+      "term": "ladies watches for women",
+      "phrase": "ladies watches for women"
+    },
+    {
+      "category": "women",
+      "term": "watch gift for women",
+      "phrase": "women's watches for gifting"
+    },
+    {
+      "category": "men",
+      "term": "mens watches",
+      "phrase": "men's watches"
+    },
+    {
+      "category": "men",
+      "term": "watch gift for men",
+      "phrase": "men's watches for gifting"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks",
+      "phrase": "wall clocks"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for home",
+      "phrase": "wall clocks for home"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for living room",
+      "phrase": "wall clocks for living room"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks for bedroom",
+      "phrase": "wall clocks for the bedroom"
+    },
+    {
+      "category": "women",
+      "term": "watches for women",
+      "phrase": "watches for women"
+    },
+    {
+      "category": "women",
+      "term": "ladies wrist watches",
+      "phrase": "ladies wrist watches"
+    },
+    {
+      "category": "women",
+      "term": "wrist watches for women",
+      "phrase": "women's wrist watches"
+    },
+    {
+      "category": "women",
+      "term": "gift watches for women",
+      "phrase": "women's watches for gifting"
+    },
+    {
+      "category": "men",
+      "term": "gents watches",
+      "phrase": "gents watches"
+    },
+    {
+      "category": "men",
+      "term": "watches for men",
+      "phrase": "watches for men"
+    },
+    {
+      "category": "men",
+      "term": "mens wrist watches",
+      "phrase": "men's wrist watches"
+    },
+    {
+      "category": "men",
+      "term": "gents wrist watches",
+      "phrase": "gents wrist watches"
+    },
+    {
+      "category": "men",
+      "term": "gift watches for men",
+      "phrase": "men's watches for gifting"
+    },
+    {
+      "category": "clock",
+      "term": "hanging wall clock",
+      "phrase": "hanging wall clock"
+    },
+    {
+      "category": "clock",
+      "term": "hanging wall clocks",
+      "phrase": "hanging wall clocks"
+    },
+    {
+      "category": "clock",
+      "term": "wall clock for home",
+      "phrase": "wall clocks for home"
+    }
   ],
   "fallbacks": [
-    {"category": "women", "term": "ladies watches", "phrase": "ladies watches"},
-    {"category": "men", "term": "gents watches", "phrase": "gents watches"},
-    {"category": "clock", "term": "wall clocks", "phrase": "wall clocks"}
+    {
+      "category": "women",
+      "term": "ladies watches",
+      "phrase": "ladies watches"
+    },
+    {
+      "category": "men",
+      "term": "gents watches",
+      "phrase": "gents watches"
+    },
+    {
+      "category": "clock",
+      "term": "wall clocks",
+      "phrase": "wall clocks"
+    }
+  ],
+  "terminologyEvidence": [
+    {
+      "terms": [
+        "ladies wrist watches",
+        "gents wrist watches"
+      ],
+      "sourceUrl": "https://www.bemlindia.in/wp-content/plugins/tenders/WCP/DATA/uploads/RFQ%20for%20Wrist%20Watches_2023.pdf",
+      "publishedOn": "2023-06-02",
+      "verifiedOn": "2026-11-05",
+      "evidenceType": "Historical primary-source category terminology, not current demand, trend or inventory evidence."
+    },
+    {
+      "terms": [
+        "hanging wall clock"
+      ],
+      "sourceUrl": "https://www.pepperfry.com/product/double-sided-black-metal-wall-clock-2170612.html",
+      "publishedOn": null,
+      "verifiedOn": "2026-11-05",
+      "evidenceType": "Primary retail terminology; publication date unestablished, not demand, trend or Ambika inventory evidence."
+    }
   ]
 }

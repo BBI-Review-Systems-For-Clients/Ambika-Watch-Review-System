@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { BRAND_NAMES } from './review-core.js';
+import { readFileSync } from 'node:fs';
+import { CATEGORY_PHRASES_BY_CATEGORY } from './review-core.js';
 
 export const BUSINESS_PROFILE = Object.freeze({
   name: 'Ambika Watch & Gift',
@@ -16,16 +16,15 @@ export const BUSINESS_PROFILE = Object.freeze({
 });
 
 const LANGUAGES = ['en', 'hi', 'gu'];
-const TOKENS = ['business', 'city', 'area', 'brand', 'topic'];
 const SOURCE_TYPES = new Set(['google-autocomplete', 'evergreen', 'google-trends']);
 const CLAIMS = /\b(I |my |bought|purchased|visited|maine|mera|maro|lidhu|lidhi|kharid|khareed)|five.star|5.star|helpful staff|best watch|in stock|available now|branch|guaranteed|genuine|authentic|discount|satisfied|excellent|amazing/i;
 const UNSUPPORTED_TOPIC = /\b(buy|cheap|best|discount|under|sale|genuine|authentic|smart|waterproof|luxury|online|near me|delivery|repair|warranty|replica|fake|diamond|gold|silver)\b/i;
-const FEMALE_TOPIC = /\b(women(?:'s)?|ladies|female)\b/i;
+const FEMALE_TOPIC = /\b(women(?:'?s)?|ladies|female)\b/i;
 const MALE_TOPIC = /\b(men(?:'?s)?|gents|male)\b/i;
 const WATCH_TOPIC = /\bwatch(?:es)?\b/i;
 const CLOCK_TOPIC = /\b(?:wall|hanging) clocks?\b/i;
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const BRAND_PATTERN = new RegExp(`\\b(?:${BRAND_NAMES.map(escapeRegExp).sort((a, b) => b.length - a.length).join('|')})\\b`, 'i');
+const SOURCE_TOPIC_WORDS = new Set("ladies lady women women's womens female men men's mens gents male watch watches wrist wristwatch wristwatches the wall hanging clock clocks for home living room bedroom gift gifting gifts".split(/\s+/));
 
 function readJson(name) {
   try { return JSON.parse(readFileSync(new URL(`./${name}`, import.meta.url), 'utf8')); }
@@ -58,8 +57,12 @@ function validateSources(research) {
       if (sourceType === 'google-trends') {
         const observed = research.trends?.observed;
         const sameTerm = value => typeof value === 'string' && value.toLowerCase() === term.toLowerCase();
-        if (source.hostname !== 'trends.google.com' || !sameTerm(entry.evidence?.term) || !Array.isArray(observed) || !observed.some(item => sameTerm(item?.term))) {
-          throw new Error(`Google Trends keyword ${term} needs matching literal observed and entry evidence`);
+        const publishedAt = Date.parse(entry.evidence?.publishedAt);
+        const ageMs = Date.parse(research.researchedAt) - publishedAt;
+        if (source.hostname !== 'trends.google.com' || !sameTerm(entry.evidence?.term) || !Number.isFinite(publishedAt)
+          || ageMs < -60 * 60 * 1000 || ageMs > 48 * 60 * 60 * 1000
+          || !Array.isArray(observed) || !observed.some(item => sameTerm(item?.term) && Date.parse(item.publishedAt) === publishedAt)) {
+          throw new Error(`Google Trends keyword ${term} needs matching literal observed and entry evidence published within 48 hours of research`);
         }
       }
       if (sourceType === 'google-autocomplete' && !['suggestqueries.google.com', 'www.google.com', 'google.com'].includes(source.hostname)) {
@@ -72,7 +75,7 @@ function validateSources(research) {
         : category === 'men'
           ? WATCH_TOPIC.test(topic) && MALE_TOPIC.test(topic) && !FEMALE_TOPIC.test(topic) && !CLOCK_TOPIC.test(topic)
           : CLOCK_TOPIC.test(topic) && !FEMALE_TOPIC.test(topic) && !MALE_TOPIC.test(topic) && !WATCH_TOPIC.test(topic);
-      if (!categoryMatches || CLAIMS.test(topic) || UNSUPPORTED_TOPIC.test(topic) || BRAND_PATTERN.test(topic)) {
+      if (!categoryMatches || CLAIMS.test(topic) || UNSUPPORTED_TOPIC.test(topic) || (topic.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) || []).some(word => !SOURCE_TOPIC_WORDS.has(word))) {
         throw new Error(`Keyword ${topic} adds an unsupported claim, brand or category`);
       }
     }
@@ -87,47 +90,26 @@ function validateSources(research) {
   return topics;
 }
 
-function validateWording(wording) {
-  if (wording?.schemaVersion !== 1) throw new Error('Draft wording requires schemaVersion 1');
-  for (const language of LANGUAGES) {
-    const templates = wording.templates?.[language];
-    if (!Array.isArray(templates) || templates.length < 8 || new Set(templates).size !== templates.length) {
-      throw new Error(`Need at least eight unique ${language} sentence templates`);
-    }
-    for (const template of templates) {
-      if (typeof template !== 'string' || !template.endsWith('.') || /[.!?]/.test(template.slice(0, -1)) || CLAIMS.test(template) || /[\u0900-\u097f\u0a80-\u0aff]/u.test(template)) {
-        throw new Error(`Invalid single-sentence Roman ${language} template`);
-      }
-      const tokens = [...template.matchAll(/\{([^{}]+)\}/g)].map(match => match[1]);
-      if (tokens.length !== TOKENS.length || TOKENS.some(token => tokens.filter(value => value === token).length !== 1)) {
-        throw new Error('A template needs each business, city, area, brand and topic token exactly once');
-      }
-      if (!template.includes(language === 'en' ? 'watch shop in {city}' : 'watch shop')) {
-        throw new Error(`Template missing local watch-shop keyword for ${language}`);
-      }
-    }
-  }
-}
-
-/** Stable, build-time inputs: Gemini can change grammar without inventing facts. */
+/** Stable public contexts contain generic category examples, never product brands. */
 export function buildReviewContexts({ research = readJson('keyword-research.json') } = {}) {
   const topics = validateSources(research);
   const contexts = [];
   for (const category of BUSINESS_PROFILE.categories) {
     const categoryTopics = topics.get(category.id);
-    const brands = category.id === 'clock' ? ['Onex'] : BRAND_NAMES;
+    const phrases = CATEGORY_PHRASES_BY_CATEGORY[category.id];
     for (const language of LANGUAGES) {
       for (let variant = 0; variant < category.languages[language]; variant++) {
         const business = BUSINESS_PROFILE.name;
         const city = BUSINESS_PROFILE.city;
         const area = BUSINESS_PROFILE.servingAreas[variant % BUSINESS_PROFILE.servingAreas.length];
-        const brand = brands[variant % brands.length];
         const topic = categoryTopics[variant % categoryTopics.length];
-        // A stable variant distinguishes multiple wordings of an identical context.
-        // Clock contexts otherwise have fewer distinct entity combinations than drafts.
-        const identity = [business, city, language, area, brand, category.id, topic, variant];
+        // Each area gets singular/plural examples and multiple neutral sentence styles.
+        const categoryPhrase = phrases[Math.floor(variant / BUSINESS_PROFILE.servingAreas.length) % phrases.length];
+        const styleIndex = Math.floor(variant / (BUSINESS_PROFILE.servingAreas.length * phrases.length));
+        const identity = [business, city, language, area, category.id, topic, variant, categoryPhrase, styleIndex];
         const contextId = createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 20);
-        contexts.push(Object.freeze({ contextId, business, city, language, area, brand, category: category.id, topic, variant }));
+        contexts.push(Object.freeze({ contextId, business, city, language, area,
+          category: category.id, topic, variant, categoryPhrase, styleIndex }));
       }
     }
   }
@@ -139,15 +121,13 @@ export function buildReviewContexts({ research = readJson('keyword-research.json
 
 const allEntities = values => new RegExp(`\\b(?:${values.map(escapeRegExp).sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
 const NATIVE_SCRIPT = /[\u0900-\u097f\u0a80-\u0aff]/u;
-const EXTRA_GENERATED_CLAIMS = /\b(?:main|mera|meri|mere|maro|mari|mane|mujhe|hu|gaya|gayi|gai|gayo|staff|service|quality|purchased|bought|visited|recommend|recommended|satisfaction|satisfied|perfect|excellent|amazing|guaranteed|authentic|genuine|discount|undetectable|algorithm|ranking)\b|five.star|5.star|human[- ](?:written|typed)|AI[- ]free|in stock|currently available|available now|milti hain|male chhe/i;
 const GENERATED_STOCK_VERBS = /\b(?:offers?|carries|sells?|stocks?|available|availability|uplabdh|milti|milta|male|malti|malta|malshe)\b/i;
 const GENERATED_REPUTATION = /\b(?:good|great)\s+place\b|\bwell[- ]known\b|\bpopular\b/i;
 const GEMINI_MODEL_NAME = /^(?:models\/)?gemini-[A-Za-z0-9._-]{1,100}$/;
 const validGeminiModel = value => typeof value === 'string' && GEMINI_MODEL_NAME.test(value);
 const normalizeGeminiModel = value => value.replace(/^models\//, '');
 export const CUSTOMER_POV_KIND = 'customer-pov-template';
-export const CUSTOMER_POV_SLOTS = Object.freeze(['area', 'brand', 'category', 'recipient', 'experience']);
-const DESCRIPTIVE_KIND = 'business-context-draft';
+export const CUSTOMER_POV_SLOTS = Object.freeze(['area', 'category', 'recipient', 'experience']);
 // First-person visit/purchase grammar is allowed only in the explicitly marked
 // template mode. Personal details and judgements must remain unresolved slots.
 const POV_UNGROUNDED_DETAILS = /\b(?:staff|service|quality|helpful|friendly|polite|rude|good|great|best|bad|poor|nice|happy|satisfaction|satisfied|excellent|amazing|perfect|recommend|recommended|reliable|reasonable|affordable|expensive|cheap|price|prices|pricing|range|ranges|experience|overall|discount|offer|offers|warranty|guaranteed|genuine|authentic|original|popular|famous|known|papa|father|dad|daddy|mother|mummy|mom|mama|friend|friends|wife|husband|sister|brother|daughter|son|family|birthday|anniversary|wedding|yesterday|today|tomorrow|yday|rupees|rs|inr|acha|achha|accha|achhi|achhe|achcha|achchi|achche|badiya|badhiya|sasta|sasti|mehenga|mahenga|saru|saro|saras|sari|mast|anubhav|vyavhar|bhav|kimat|undetectable|algorithm|ranking)\b|five.star|5.star|human[- ](?:written|typed)|AI[- ]free|\d|in stock|currently available|available now/i;
@@ -165,16 +145,16 @@ const SCAFFOLD_WORD_SETS = Object.freeze(Object.fromEntries(Object.entries(CUSTO
 
 function validateCustomerPovTemplate(text, categoryPhrase, context) {
   const slots = [...text.matchAll(/\[[^\[\]]+\]/g)].map(match => match[0]);
-  const required = [`[area: ${context.area}]`, `[brand: ${context.brand}]`, `[category: ${categoryPhrase}]`, '[recipient]', '[experience]'];
+  const required = [`[area: ${context.area}]`, `[category: ${categoryPhrase}]`, '[recipient]', '[experience]'];
   const scaffold = text.replace(/\[[^\[\]]+\]/g, '');
   if (slots.length !== required.length || required.some(slot => slots.filter(value => value === slot).length !== 1)
     || /[\[\]]/.test(scaffold)) {
-    throw new Error(`Customer POV template needs exactly five unresolved slots for ${context.contextId}`);
+    throw new Error(`Customer POV template needs exactly four unresolved slots for ${context.contextId}`);
   }
   const links = {
-    en: { recipient: /\bfor\s+\[recipient\]/, experience: /\band\s+\[experience\]\.$/ },
-    hi: { recipient: /\[recipient\]\s+ke\s+liye\b/, experience: /\baur\s+\[experience\]\.$/ },
-    gu: { recipient: /\[recipient\]\s+mate\b/, experience: /\bane\s+\[experience\]\.$/ },
+    en: { recipient: /\bfor\s+\[recipient\]/i, experience: /\band\s+\[experience\]\.$/i },
+    hi: { recipient: /\[recipient\]\s+ke\s+liye\b/i, experience: /\baur\s+\[experience\]\.$/i },
+    gu: { recipient: /\[recipient\]\s+mate\b/i, experience: /\bane\s+\[experience\]\.$/i },
   }[context.language];
   const experienceLink = text.match(links.experience);
   const recipientLink = text.match(links.recipient);
@@ -185,11 +165,34 @@ function validateCustomerPovTemplate(text, categoryPhrase, context) {
   const areaRelation = new RegExp(context.language === 'en' ? `\\bfrom\\s+${areaSlot}`
     : `${areaSlot}\\s+${context.language === 'hi' ? 'se' : 'thi'}\\b`, 'i');
   if (!areaRelation.test(text)) throw new Error(`Customer POV area must describe coming from the example area for ${context.contextId}`);
-  // The example area, brand and category must never escape their labeled slots.
+  if (context.language === 'en') {
+    const areaIndex = text.indexOf(`[area: ${context.area}]`);
+    const originPrefix = text.slice(0, areaIndex).trim();
+    if (areaIndex > text.indexOf(context.business)
+      || !/(?:^from|\b(?:came|went|traveled|travelled|arrived|coming|come|being)\s+from)$/i.test(originPrefix)) {
+      throw new Error(`English template needs a clear customer-origin clause before the business for ${context.contextId}`);
+    }
+    if (/\bfor\s+\[recipient\]\s+\[category:/i.test(text) || /\blook(?:ed|ing)?\s+for\s+\[recipient\]/i.test(text)) {
+      throw new Error(`English template must attach the recipient to shopping, not make them the product for ${context.contextId}`);
+    }
+    if (new RegExp(`\\barrived\\s+from\\s+${areaSlot}\\s+to\\s+${escapeRegExp(context.business)}`, 'i').test(text)) {
+      throw new Error(`English arrival uses at the business, not to the business for ${context.contextId}`);
+    }
+  }
+  // The example area and category must never escape their labeled slots.
   const plainScaffold = scaffold.replace(context.business, '').replace(context.city, '');
+  const categorySlot = escapeRegExp(`[category: ${categoryPhrase}]`);
+  if (new RegExp(`\\ban\\s+${categorySlot}`, 'i').test(text)
+    || (/s$/.test(categoryPhrase) && new RegExp(`\\ba\\s+${categorySlot}`, 'i').test(text))
+    || (context.language === 'en' && !/s$/.test(categoryPhrase) && !new RegExp(`\\ba\\s+${categorySlot}`, 'i').test(text))) {
+    throw new Error(`Customer POV template has an article/category-number mismatch for ${context.contextId}`);
+  }
   if (context.language === 'en' && (!/\b(?:came|went|visited|stopped|traveled|travelled|arrived|dropped)\b|\b(?:was|were)\s+at\b/i.test(plainScaffold)
     || /\b(?:plan|planning|intend|intending|will)\b/i.test(plainScaffold))) {
     throw new Error(`Customer POV template needs a past visit rather than a future plan for ${context.contextId}`);
+  }
+  if (context.language === 'hi' && !/\b(?:aaya|aayi|aai|aaye|aya|ayi|gaya|gayi|gai|gaye|gya|gyi|gye|pahuncha|pahunchi|pahunche)\b/i.test(plainScaffold)) {
+    throw new Error(`Hindi template needs a past arrival or visit verb for ${context.contextId}`);
   }
   const unknownWords = [...new Set((plainScaffold.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [])
     .map(word => word.toLowerCase()).filter(word => !SCAFFOLD_WORD_SETS[context.language]?.has(word)))];
@@ -197,10 +200,18 @@ function validateCustomerPovTemplate(text, categoryPhrase, context) {
     throw new Error(`Customer POV template has unsupported outside-slot words for ${context.contextId}: ${unknownWords.slice(0, 12).join(', ').slice(0, 180)}`);
   }
   if (context.language === 'gu' && ((plainScaffold.match(/\b(?:aavyo|aavi|aavya|aaviyo|avyo|avi|avya|gayo|gayi|gaya|gya)\s+(?:hato|hati|hata)\b/gi)?.length || 0) > 1
-    || (context.category === 'clock' && !/\b(?:leva|jova|kharidva)\b/i.test(plainScaffold)))) {
-    throw new Error(`Gujarati template needs one clear visit clause and a clock-shopping intent for ${context.contextId}`);
+    || !/\b(?:leva|jova|kharidva)\b/i.test(plainScaffold))) {
+    throw new Error(`Gujarati template needs one clear visit clause and an explicit shopping-intent verb for ${context.contextId}`);
   }
-  if (allEntities(BUSINESS_PROFILE.servingAreas).test(scaffold) || BRAND_PATTERN.test(scaffold)
+  if (context.language === 'gu') {
+    const intent = text.match(/\b(?:leva|jova|kharidva)\b/i);
+    const visit = text.match(/\b(?:aavyo|aavi|aavya|aaviyo|avyo|avi|avya|gayo|gayi|gaya|gya)\b/i);
+    if ((plainScaffold.match(/\bane\b/gi)?.length || 0) !== 1 || !visit
+      || intent.index >= visit.index || text.indexOf('[category:') >= intent.index || recipientLink.index >= intent.index) {
+      throw new Error(`Gujarati template needs one complete shopping-purpose clause before the past visit, then final feedback for ${context.contextId}`);
+    }
+  }
+  if (allEntities(BUSINESS_PROFILE.servingAreas).test(scaffold)
     || plainScaffold.toLowerCase().includes(categoryPhrase.toLowerCase())
     || !FIRST_PERSON[context.language]?.test(plainScaffold)
     || POV_UNGROUNDED_DETAILS.test(plainScaffold) || GENERATED_STOCK_VERBS.test(plainScaffold)
@@ -211,48 +222,23 @@ function validateCustomerPovTemplate(text, categoryPhrase, context) {
 }
 
 
-function claimsServingAreaLocation(text, context) {
-  const area = escapeRegExp(context.area);
-  const business = escapeRegExp(context.business);
-  const city = escapeRegExp(context.city);
-  // Catch explicit shop/address predicates, not a shopper's conditional location.
-  const patterns = [
-    `\\b${business}\\s*,?\\s*(?:is\\s+)?(?:located\\s+)?(?:in|at|near)\\s+(?:the\\s+)?${area}\\b`,
-    `\\b${business}(?:,\\s*|\\s+)(?:(?:a|the)\\s+)?(?:watch\\s+)?(?:shop|store|branch)\\s+(?:is\\s+)?(?:located\\s+)?(?:in|at|near)\\s+${area}\\b`,
-    `\\b(?:this|the|our)\\s+(?:watch\\s+)?(?:shop|store|branch)\\s+(?:is\\s+)?(?:located\\s+)?(?:in|at|near)\\s+${area}\\b`,
-    `\\b(?:shop|store|branch)\\s+(?:is\\s+)?located\\s+(?:in|at|near)\\s+${area}\\b`,
-    `\\b${area}\\s+(?:mein|me|ma)\\s+${business}\\b`,
-    `\\b${business}\\s*,?\\s*(?:is\\s+)?(?:located\\s+)?(?:in|at|near)\\s+${city}\\s*,\\s*${area}\\b`,
-    `\\b${business}\\s*,\\s*${city}\\s*,\\s*${area}\\b`,
-  ];
-  return patterns.some(pattern => new RegExp(pattern, 'i').test(text));
-}
-
-
-function categoryPhraseMatches(phrase, category) {
-  const female = /\b(women(?:'s)?|lad(?:y|ies)|female|mahila(?:on|o)?)\b/i.test(phrase);
-  const male = /\b(men(?:'?s)?|gents|male|purush(?:on|o)?)\b/i.test(phrase);
-  const watch = /\b(watch(?:es)?|wristwatch(?:es)?|ghadi(?:yan)?|ghadiyal(?:o)?)\b/i.test(phrase);
-  const clock = /\b(?:wall|hanging) clocks?\b|\b(?:deewar(?: ki)?|deeval(?: ni)?) ghadi(?:yan|yalo|yal)?\b/i.test(phrase);
-  return category === 'women' ? female && watch && !male && !clock
-    : category === 'men' ? male && watch && !female && !clock
-      : category === 'clock' && clock && !female && !male;
-}
-
-/** Validate a complete model result before any public artifact is replaced. */
+/** Validate the current four-field model result before replacing public artifacts. */
 export function validateGeminiDrafts(contexts, manifest) {
   const expectedHash = createHash('sha256').update(JSON.stringify(contexts)).digest('hex');
-  if (manifest?.schemaVersion !== 1 || manifest.provider !== 'google-gemini'
+  if (manifest?.schemaVersion !== 2 || manifest.kind !== CUSTOMER_POV_KIND || manifest.provider !== 'google-gemini'
     || !validGeminiModel(manifest.model)
-    || typeof manifest.generatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(manifest.generatedAt) || !Number.isFinite(Date.parse(manifest.generatedAt))) {
-    throw new Error('Gemini drafts require schemaVersion 1, Google provider, model and generation date');
+    || typeof manifest.generatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(manifest.generatedAt)
+    || !Number.isFinite(Date.parse(manifest.generatedAt))) {
+    throw new Error('Gemini drafts require schemaVersion 2, customer-pov-template kind, Google provider, model and generation date');
   }
-  const kind = manifest.kind === undefined ? DESCRIPTIVE_KIND : manifest.kind;
-  if (![DESCRIPTIVE_KIND, CUSTOMER_POV_KIND].includes(kind)) throw new Error('Gemini drafts have an unsupported kind');
-  const customerPov = kind === CUSTOMER_POV_KIND;
   if (manifest.contextHash !== expectedHash) throw new Error('Gemini drafts are stale or have an invalid context hash');
   if (!Array.isArray(manifest.entries) || manifest.entries.length !== contexts.length) {
     throw new Error('Gemini drafts must cover every context exactly once');
+  }
+  const contextFields = new Set(['contextId', 'business', 'city', 'language', 'area', 'category', 'topic', 'variant', 'categoryPhrase', 'styleIndex']);
+  if (contexts.some(context => Object.keys(context).some(key => !contextFields.has(key))
+    || !CATEGORY_PHRASES_BY_CATEGORY[context.category]?.includes(context.categoryPhrase))) {
+    throw new Error('Review contexts require the current generic-category schema');
   }
   const expected = new Map(contexts.map(context => [context.contextId, context]));
   if (expected.size !== contexts.length || !contexts.length) throw new Error('Review contexts need unique identities');
@@ -261,57 +247,32 @@ export function validateGeminiDrafts(contexts, manifest) {
   for (const entry of manifest.entries) {
     const context = expected.get(entry?.contextId);
     if (!context || byId.has(entry.contextId)) throw new Error('Unknown or duplicate Gemini context ID');
+    if (Object.keys(entry).some(key => /brand/i.test(key))) throw new Error('Product-brand metadata is not permitted');
     const { text, categoryPhrase } = entry;
     const rawModel = entry.model === undefined ? manifest.model : entry.model;
     if (!validGeminiModel(rawModel)) throw new Error(`Gemini draft has an invalid model for ${entry.contextId}`);
     const model = normalizeGeminiModel(rawModel);
     if (typeof text !== 'string' || text !== text.trim() || !text.length || text.length > 400
-      || text.split(/\s+/u).length > 50 || !/[.!?]$/.test(text) || text.match(/[.!?]/g)?.length !== 1
-      || /[\n\r<>]/.test(text) || NATIVE_SCRIPT.test(text)
-      || (customerPov ? !/^[\x20-\x7e]+$/.test(text)
-        : CLAIMS.test(text) || EXTRA_GENERATED_CLAIMS.test(text) || GENERATED_STOCK_VERBS.test(text) || GENERATED_REPUTATION.test(text))) {
+      || text.split(/\s+/u).length > 50 || !text.endsWith('.') || text.match(/[.!?]/g)?.length !== 1
+      || /[\n\r<>]/.test(text) || NATIVE_SCRIPT.test(text) || !/^[\x20-\x7e]+$/.test(text)) {
       throw new Error(`Invalid one-sentence Gemini draft for ${entry.contextId}`);
     }
-    if (typeof categoryPhrase !== 'string' || categoryPhrase !== categoryPhrase.trim()
-      || !/^[A-Za-z][A-Za-z0-9' -]{1,79}$/.test(categoryPhrase)
-      || !text.toLowerCase().includes(categoryPhrase.toLowerCase())
-      || !categoryPhraseMatches(categoryPhrase, context.category)
-      || BRAND_PATTERN.test(categoryPhrase) || UNSUPPORTED_TOPIC.test(categoryPhrase)) {
-      throw new Error(`Gemini draft has an invalid ${context.category} category phrase`);
+    if (categoryPhrase !== context.categoryPhrase || !CATEGORY_PHRASES_BY_CATEGORY[context.category].includes(categoryPhrase)) {
+      throw new Error(`Gemini draft must use its assigned generic ${context.category} category phrase`);
     }
-    const templateMetadata = customerPov ? validateCustomerPovTemplate(text, categoryPhrase, context) : {};
+    const templateMetadata = validateCustomerPovTemplate(text, categoryPhrase, context);
     const areas = text.match(allEntities(BUSINESS_PROFILE.servingAreas));
-    const brands = text.match(allEntities(BRAND_NAMES));
-    if (areas?.length !== 1 || areas[0] !== context.area || brands?.length !== 1 || brands[0] !== context.brand
-      || !text.includes(context.business) || !text.includes(context.city)) {
+    if (areas?.length !== 1 || areas[0] !== context.area
+      || text.split(context.business).length !== 2 || text.split(context.city).length !== 2) {
       throw new Error(`Gemini draft changed or duplicated required entities for ${entry.contextId}`);
     }
-    // In English, establish the shopper catchment before the product so a late
-    // "from AREA" cannot attach ambiguously to the watch or room description.
-    if (context.language === 'en' && text.indexOf(context.area) > text.indexOf(context.brand)) {
-      throw new Error(`English Gemini draft must mention its catchment area before the brand for ${entry.contextId}`);
-    }
-    const productOrigin = new RegExp(`\\b${escapeRegExp(categoryPhrase)}(?:,?\\s+)from\\s+${escapeRegExp(context.area)}\\b`, 'i');
-    const genericProductOrigin = new RegExp(`\\b(?:(?:wrist)?watch(?:es)?|clocks?)(?:,?\\s+)from\\s+${escapeRegExp(context.area)}\\b`, 'i');
-    const hasBrand = new RegExp(`\\bhas\\s+(?:an?\\s+)?${escapeRegExp(context.brand)}\\b`, 'i');
-    if (productOrigin.test(text) || genericProductOrigin.test(text) || hasBrand.test(text)) {
-      throw new Error(`Gemini draft invents product origin or inventory for ${entry.contextId}`);
-    }
-    if (claimsServingAreaLocation(text, context)) {
-      throw new Error(`Gemini draft treats a serving area as a branch location for ${entry.contextId}`);
-    }
-    if ((context.category === 'women' && MALE_TOPIC.test(text))
-      || (context.category === 'men' && FEMALE_TOPIC.test(text))
-      || (context.category !== 'clock' && CLOCK_TOPIC.test(text))
-      || (context.category === 'clock' && (FEMALE_TOPIC.test(text) || MALE_TOPIC.test(text)))) {
-      throw new Error(`Gemini draft added an unrelated category for ${entry.contextId}`);
+    if (context.language === 'en' && text.indexOf(context.area) > text.indexOf(`[category: ${categoryPhrase}]`)) {
+      throw new Error(`English Gemini draft must mention its catchment area before the product for ${entry.contextId}`);
     }
     const normalizedText = text.toLowerCase();
     if (seenText.has(normalizedText)) throw new Error('Gemini drafts must have unique full sentences');
     seenText.add(normalizedText);
-    const phraseStart = text.toLowerCase().indexOf(categoryPhrase.toLowerCase());
-    const renderedPhrase = text.slice(phraseStart, phraseStart + categoryPhrase.length);
-    byId.set(entry.contextId, Object.freeze({ contextId: entry.contextId, text, categoryPhrase: renderedPhrase, model, ...templateMetadata }));
+    byId.set(entry.contextId, Object.freeze({ contextId: entry.contextId, text, categoryPhrase, model, ...templateMetadata }));
   }
   if (manifest.modelsUsed !== undefined) {
     if (!Array.isArray(manifest.modelsUsed) || !manifest.modelsUsed.length || manifest.modelsUsed.some(model => !validGeminiModel(model))) {
@@ -326,37 +287,16 @@ export function validateGeminiDrafts(contexts, manifest) {
   return Object.freeze(contexts.map(context => byId.get(context.contextId)));
 }
 
-/** Build-time only. A present invalid Gemini manifest never silently falls back. */
-export function buildReviewCatalog({ research = readJson('keyword-research.json'), wording, generated } = {}) {
+/** Production compilation requires validated model output; retired wording never substitutes. */
+export function buildReviewCatalog({ research = readJson('keyword-research.json'), generated } = {}) {
   const contexts = buildReviewContexts({ research });
-  const hasGeneratedFile = existsSync(new URL('./gemini-drafts.json', import.meta.url));
-  if (generated !== undefined || hasGeneratedFile) {
-    const entries = validateGeminiDrafts(contexts, generated === undefined ? readJson('gemini-drafts.json') : generated);
-    return Object.freeze(entries.map((entry, index) => {
-      const context = contexts[index];
-      const id = createHash('sha256').update(entry.text).digest('hex').slice(0, 16);
-      return Object.freeze({ id, language: context.language, area: context.area, brand: context.brand,
-        category: context.category, keyword: entry.categoryPhrase, topic: context.topic,
-        contextId: context.contextId, categoryPhrase: entry.categoryPhrase, generator: 'google-gemini', generatorModel: entry.model,
-        ...(entry.kind ? { kind: entry.kind, templateSlots: entry.templateSlots } : {}), text: entry.text });
-    }));
-  }
-
-  // Legacy bootstrap is available only while no Gemini manifest exists. It is
-  // explicit offline wording, never reported as a successful Gemini generation.
-  const legacyWording = wording === undefined ? readJson('draft-wording.json') : wording;
-  validateWording(legacyWording);
-  const seen = new Set();
-  return Object.freeze(contexts.map(context => {
-    const templates = legacyWording.templates[context.language];
-    const template = templates[Math.floor(context.variant / BUSINESS_PROFILE.servingAreas.length) % templates.length];
-    const values = { business: context.business, city: context.city, area: context.area, brand: context.brand, topic: context.topic };
-    const sentence = template.replace(/\{([^{}]+)\}/g, (_, token) => values[token]);
-    const text = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-    if (seen.has(text)) throw new Error('Duplicate draft in review catalog');
-    seen.add(text);
-    const id = createHash('sha256').update(text).digest('hex').slice(0, 16);
-    return Object.freeze({ id, language: context.language, area: context.area, brand: context.brand,
-      category: context.category, keyword: BUSINESS_PROFILE.keywords[context.language], topic: context.topic, text });
+  const entries = validateGeminiDrafts(contexts, generated === undefined ? readJson('gemini-drafts.json') : generated);
+  return Object.freeze(entries.map((entry, index) => {
+    const context = contexts[index];
+    const id = createHash('sha256').update(entry.text).digest('hex').slice(0, 16);
+    return Object.freeze({ id, language: context.language, area: context.area,
+      category: context.category, keyword: entry.categoryPhrase, topic: context.topic,
+      contextId: context.contextId, categoryPhrase: entry.categoryPhrase, generator: 'google-gemini', generatorModel: entry.model,
+      kind: entry.kind, templateSlots: entry.templateSlots, text: entry.text });
   }));
 }

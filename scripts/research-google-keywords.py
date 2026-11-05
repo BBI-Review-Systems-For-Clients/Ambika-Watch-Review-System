@@ -11,7 +11,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 TRENDS_URL = 'https://trends.google.com/trending/rss?geo=IN'
@@ -55,6 +56,18 @@ def parse_predictions(raw, query):
     if not all(isinstance(term, str) for term in payload[1]):
         raise ValueError('Prediction terms must be strings')
     return list(dict.fromkeys(term.strip() for term in payload[1] if term.strip()))
+
+
+def current_trend(item, retrieved_at):
+    """A newly fetched feed can contain old items; dates must also be current."""
+    try:
+        published = parsedate_to_datetime(item.get('publishedAt') or '')
+        retrieved = datetime.fromisoformat(retrieved_at.replace('Z', '+00:00'))
+        if published.tzinfo is None or retrieved.tzinfo is None:
+            return False
+        return retrieved - timedelta(hours=48) <= published <= retrieved + timedelta(hours=1)
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def validate_policy(policy):
@@ -117,7 +130,7 @@ def collect(policy, fetch=read_url, now=None):
     for source in suggestions:
         for term in source['terms']:
             predictions.setdefault(term.casefold(), source)
-    trend_terms = {item['term'].casefold(): item for item in trends['observed']}
+    trend_terms = {item['term'].casefold(): item for item in trends['observed'] if current_trend(item, now)}
     selected = []
     for candidate in policy['candidates']:
         key = candidate['term'].casefold()
@@ -134,7 +147,19 @@ def collect(policy, fetch=read_url, now=None):
         if not any(row['category'] == category for row in selected):
             fallback = next(row for row in policy['fallbacks'] if row['category'] == category)
             selected.append({**fallback, 'sourceType': 'evergreen', 'sourceUrl': None, 'retrievedAt': None})
-    return {'schemaVersion': 1, 'researchedAt': now, 'region': 'IN', 'sources': sources, 'trends': trends, 'suggestions': suggestions, 'selectedKeywords': selected, 'errors': errors}
+    # Publish only business-reviewed candidate terms, not unrelated news or raw
+    # suggestions that can contain third-party brand names. Counts remain honest.
+    candidates = {row['term'].casefold() for row in policy['candidates']}
+    trends['observedCount'] = len(trends['observed'])
+    trends['observed'] = [item for item in trends['observed'] if item['term'].casefold() in candidates]
+    trends['observationScope'] = 'Approved candidate matches only; observedCount describes the full screened feed.'
+    trends['maximumTrendAgeHours'] = 48
+    for source in suggestions:
+        source['terms'] = [term for term in source['terms'] if term.casefold() in candidates]
+        source['retainedCount'] = len(source['terms'])
+        source['observationScope'] = 'Approved candidate matches only; observedCount describes the full screened prediction response.'
+    return {'schemaVersion': 1, 'researchedAt': now, 'region': 'IN', 'sources': sources, 'trends': trends, 'suggestions': suggestions, 'selectedKeywords': selected, 'errors': errors,
+            'terminologyEvidence': policy.get('terminologyEvidence', [])}
 
 
 def main():

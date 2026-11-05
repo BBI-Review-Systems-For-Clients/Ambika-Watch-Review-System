@@ -2,15 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inspectTemplate, checkCustomerDraft, TemplateFormatError } from '../src/index.js';
 
-const requiredFields = ['area', 'brand', 'category', 'recipient', 'experience'];
-const example = 'Main [area: Varachha] se [recipient] ke liye [brand: Casio] [category: ladies watch] lene gaya tha aur [experience].';
+const requiredFields = ['area', 'category', 'recipient', 'experience'];
+const example = 'Main [area: Varachha] se [recipient] ke liye [category: ladies watch] lene gaya tha aur [experience].';
 
-test('inspects five fields without identifying real customer details', () => {
+test('inspects four fields without identifying real customer details', () => {
   const result = inspectTemplate(example, { requiredFields });
-  assert.deepEqual(result.names, ['area', 'recipient', 'brand', 'category', 'experience']);
+  assert.deepEqual(result.names, ['area', 'recipient', 'category', 'experience']);
   assert.equal(result.fields[0].suggestion, 'Varachha');
   assert.equal(result.fields[1].suggestion, null);
-  assert.equal(example.slice(result.fields[2].start, result.fields[2].end), '[brand: Casio]');
+  assert.equal(example.slice(result.fields[2].start, result.fields[2].end), '[category: ladies watch]');
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.fields));
   assert.ok(Object.isFrozen(result.fields[0]));
