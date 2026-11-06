@@ -1,75 +1,75 @@
 {
   "schemaVersion": 1,
-  "researchedAt": "2026-11-05T16:44:34.091355+00:00",
+  "researchedAt": "2026-11-06T16:55:31.314664+00:00",
   "region": "IN",
   "sources": [
     {
       "sourceType": "google-trends",
       "sourceUrl": "https://trends.google.com/trending/rss?geo=IN",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+shop+Surat",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     },
     {
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=hanging+wall+clock",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10
     }
   ],
   "trends": {
     "sourceUrl": "https://trends.google.com/trending/rss?geo=IN",
-    "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+    "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
     "geography": "India",
     "status": "ok",
     "observed": [],
@@ -83,7 +83,7 @@
       "query": "ladies watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -97,7 +97,7 @@
       "query": "gents watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -110,7 +110,7 @@
       "query": "wall clocks",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -126,7 +126,7 @@
       "query": "watch shop Surat",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+shop+Surat",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [],
@@ -137,7 +137,7 @@
       "query": "watch gift",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -151,7 +151,7 @@
       "query": "ladies wrist watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -164,7 +164,7 @@
       "query": "gents wrist watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -177,7 +177,7 @@
       "query": "hanging wall clock",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=hanging+wall+clock",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00",
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00",
       "status": "ok",
       "observedCount": 10,
       "terms": [
@@ -194,7 +194,7 @@
       "phrase": "ladies watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "women",
@@ -202,7 +202,7 @@
       "phrase": "ladies watches for women",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "women",
@@ -210,7 +210,7 @@
       "phrase": "women's watches for gifting",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "men",
@@ -218,7 +218,7 @@
       "phrase": "men's watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "men",
@@ -226,7 +226,7 @@
       "phrase": "men's watches for gifting",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=watch+gift",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "clock",
@@ -234,7 +234,7 @@
       "phrase": "wall clocks",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "clock",
@@ -242,7 +242,7 @@
       "phrase": "wall clocks for home",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "clock",
@@ -250,7 +250,7 @@
       "phrase": "wall clocks for living room",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "clock",
@@ -258,7 +258,7 @@
       "phrase": "wall clocks for the bedroom",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=wall+clocks",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "women",
@@ -266,7 +266,7 @@
       "phrase": "ladies wrist watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=ladies+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "men",
@@ -274,7 +274,7 @@
       "phrase": "gents wrist watches",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=gents+wrist+watches",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     },
     {
       "category": "clock",
@@ -282,7 +282,7 @@
       "phrase": "hanging wall clock",
       "sourceType": "google-autocomplete",
       "sourceUrl": "https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=in&q=hanging+wall+clock",
-      "retrievedAt": "2026-11-05T16:44:34.091355+00:00"
+      "retrievedAt": "2026-11-06T16:55:31.314664+00:00"
     }
   ],
   "errors": [],
@@ -294,17 +294,17 @@
       ],
       "sourceUrl": "https://www.bemlindia.in/wp-content/plugins/tenders/WCP/DATA/uploads/RFQ%20for%20Wrist%20Watches_2023.pdf",
       "publishedOn": "2023-06-02",
-      "verifiedOn": "2026-11-05",
+      "verifiedOn": "2026-11-06",
       "evidenceType": "Historical primary-source category terminology, not current demand, trend or inventory evidence."
     },
     {
       "terms": [
         "hanging wall clock"
       ],
-      "sourceUrl": "https://www.pepperfry.com/product/double-sided-black-metal-wall-clock-2170612.html",
+      "sourceUrl": "https://ikiru.in/collections/wall-clock",
       "publishedOn": null,
-      "verifiedOn": "2026-11-05",
-      "evidenceType": "Primary retail terminology; publication date unestablished, not demand, trend or Ambika inventory evidence."
+      "verifiedOn": "2026-11-06",
+      "evidenceType": "Primary retail category titles use Hanging Wall Clock; publication date unestablished, not demand, trend or Ambika inventory evidence."
     }
   ]
 }

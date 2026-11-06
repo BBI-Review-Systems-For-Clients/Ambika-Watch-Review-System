@@ -187,12 +187,19 @@ function validateCustomerPovTemplate(text, categoryPhrase, context) {
     || (context.language === 'en' && !/s$/.test(categoryPhrase) && !new RegExp(`\\ba\\s+${categorySlot}`, 'i').test(text))) {
     throw new Error(`Customer POV template has an article/category-number mismatch for ${context.contextId}`);
   }
+  if (context.language === 'en' && !/s$/.test(categoryPhrase)
+    && new RegExp(`\\bbrows(?:e|ed|ing)\\s+a\\s+${categorySlot}`, 'i').test(text)) {
+    throw new Error(`English singular-item wording needs look at, check or choose instead of browse for ${context.contextId}`);
+  }
   if (context.language === 'en' && (!/\b(?:came|went|visited|stopped|traveled|travelled|arrived|dropped)\b|\b(?:was|were)\s+at\b/i.test(plainScaffold)
     || /\b(?:plan|planning|intend|intending|will)\b/i.test(plainScaffold))) {
     throw new Error(`Customer POV template needs a past visit rather than a future plan for ${context.contextId}`);
   }
   if (context.language === 'hi' && !/\b(?:aaya|aayi|aai|aaye|aya|ayi|gaya|gayi|gai|gaye|gya|gyi|gye|pahuncha|pahunchi|pahunche)\b/i.test(plainScaffold)) {
     throw new Error(`Hindi template needs a past arrival or visit verb for ${context.contextId}`);
+  }
+  if (context.language === 'hi' && /\bmain\b/i.test(plainScaffold) && !/\bhum\b/i.test(plainScaffold) && /\bpahunche\b/i.test(plainScaffold)) {
+    throw new Error(`Hindi singular main needs pahuncha or pahunchi, not plural pahunche for ${context.contextId}`);
   }
   const unknownWords = [...new Set((plainScaffold.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [])
     .map(word => word.toLowerCase()).filter(word => !SCAFFOLD_WORD_SETS[context.language]?.has(word)))];
@@ -209,6 +216,9 @@ function validateCustomerPovTemplate(text, categoryPhrase, context) {
     if ((plainScaffold.match(/\bane\b/gi)?.length || 0) !== 1 || !visit
       || intent.index >= visit.index || text.indexOf('[category:') >= intent.index || recipientLink.index >= intent.index) {
       throw new Error(`Gujarati template needs one complete shopping-purpose clause before the past visit, then final feedback for ${context.contextId}`);
+    }
+    if (/\baavine\b/i.test(plainScaffold) && /\b(?:aavyo|aavi|aavya|aaviyo|avyo|avi|avya)\b/i.test(plainScaffold)) {
+      throw new Error(`Gujarati template must not repeat arrival as aavine followed by aavyo for ${context.contextId}`);
     }
   }
   if (allEntities(BUSINESS_PROFILE.servingAreas).test(scaffold)

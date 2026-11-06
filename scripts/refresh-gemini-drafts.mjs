@@ -48,7 +48,7 @@ export async function generateGeminiManifest({
   const acceptedWordings = pending => [...new Set([...accepted.values()].filter(entry => {
     const existing = byId.get(entry.contextId);
     return pending.some(context => context.language === existing.language && context.area === existing.area && context.category === existing.category && context.categoryPhrase === existing.categoryPhrase);
-  }).map(entry => entry.text.replace(/\[area: [^\]]+\]/g, '[area: AREA]')))].slice(-10);
+  }).map(entry => entry.text.replace(/\[area: [^\]]+\]/g, '[area: AREA]').replace(/\[category: [^\]]+\]/g, '[category: PHRASE]')))].slice(-10);
   const neutralVocabulary = pending => ` Outside the slots and exact business/city names, use ONLY these neutral ${pending[0].language} grammar words (case-insensitive): ${CUSTOMER_POV_SCAFFOLD_WORDS[pending[0].language].join(' ')}.`;
   const batches = [];
   const unfinished = [];
@@ -58,7 +58,7 @@ export async function generateGeminiManifest({
   }
   for (let index = 0; index < batches.length; index++) {
     let pending = batches[index];
-    let revisionGuidance = 'Write fresh first-person customer-POV fill-in templates with exactly four slots: [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. No product-brand name, field or placeholder is permitted. Follow the supplied styleIndex to vary full sentence grammar; use the assigned generic categoryPhrase exactly. Keep recipient and experience unresolved, with no relatives, praise, price feedback or purchase details added as facts. Existing sentence shapes below use AREA as an abstract marker: restore each context\'s exact area when writing a different sentence.';
+    let revisionGuidance = 'Write fresh first-person customer-POV fill-in templates with exactly four slots: [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. No product-brand name, field or placeholder is permitted. Follow the supplied styleIndex to vary full sentence grammar; use the assigned generic categoryPhrase exactly. Keep recipient and experience unresolved, with no relatives, praise, price feedback or purchase details added as facts. Existing sentence shapes use AREA/PHRASE as abstract markers: restore each context\'s exact area/categoryPhrase while writing different surrounding grammar.';
     revisionGuidance += neutralVocabulary(pending);
     const priorWordings = acceptedWordings(pending);
     if (priorWordings.length) revisionGuidance += ` Write different surrounding grammar from these already accepted templates: ${JSON.stringify(priorWordings)}.`;
@@ -70,10 +70,13 @@ export async function generateGeminiManifest({
       if (!usage.modelsAttempted.includes(requestModel)) usage.modelsAttempted.push(requestModel);
       try { result = await request({ contexts: pending, apiKey, model: requestModel, timeoutMs: 55000, revisionGuidance }); }
       catch (error) {
-        if (error instanceof GeminiRequestError && error.code === 'HTTP' && error.status === 429 && activeModel !== 'gemini-3.1-flash-lite') {
+        if (error instanceof GeminiRequestError && error.code === 'HTTP'
+          && (error.status === 429 || (error.status === 503 && attempt === maxAttempts))
+          && activeModel !== 'gemini-3.1-flash-lite') {
           activeModel = 'gemini-3.1-flash-lite';
-          onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length, modelSwitched: activeModel });
-          // A quota rejection returned no content; permit one bounded model
+          onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length, modelSwitched: activeModel,
+            modelSwitchReason: error.status === 429 ? 'quota' : 'provider-unavailable' });
+          // The quota/unavailable response returned no content; permit one bounded model
           // switch without consuming the final content-repair attempt.
           attempt--;
           continue;
@@ -96,7 +99,7 @@ export async function generateGeminiManifest({
       onProgress({ batch: index + 1, batches: batches.length, attempt, accepted: accepted.size, total: contexts.length, remainingInBatch: pending.length,
         validationErrors: [...new Set(errors.map(message => message.replace(/^[a-f0-9]{20}: /, '').replace(/ for [a-f0-9]{20}/g, '')))].slice(0, 3) });
       const avoid = acceptedWordings(pending);
-      revisionGuidance = `Repair the rejected contexts with exactly four slots [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. Use fresh past-visit grammar and only ONE final period in ASCII Roman text. No product-brand names/fields/placeholders or invented feedback, relatives, prices or satisfaction. Keep the exact assigned categoryPhrase and distinguish styleIndex. AREA in existing shapes is abstract: output each context's exact area.${neutralVocabulary(pending.length ? pending : batches[index])} Validation notes: ${errors.slice(0, 8).join('; ')}. Already accepted sentence shapes to avoid: ${JSON.stringify(avoid)}.`.slice(0, 3900);
+      revisionGuidance = `Repair the rejected contexts with exactly four slots [area: supplied area], [category: assigned categoryPhrase], [recipient], [experience]. Use fresh past-visit grammar and only ONE final period in ASCII Roman text. No product-brand names/fields/placeholders or invented feedback, relatives, prices or satisfaction. Keep the exact assigned categoryPhrase and distinguish styleIndex. AREA/PHRASE in existing shapes are abstract: restore this context's exact area and categoryPhrase.${neutralVocabulary(pending.length ? pending : batches[index])} Validation notes: ${errors.slice(0, 8).join('; ')}. Already accepted sentence shapes to avoid: ${JSON.stringify(avoid)}.`.slice(0, 3900);
     }
     if (pending.length) unfinished.push({ batch: index + 1, count: pending.length });
   }
@@ -137,12 +140,13 @@ async function main() {
   }
   const manifest = await refreshGeminiFile({
     outputPath: resolve(ROOT, 'gemini-drafts.json'), apiKey, model, checkpoint,
+    batchSize: process.env.GEMINI_BATCH_SIZE === undefined ? undefined : Number(process.env.GEMINI_BATCH_SIZE),
     onCheckpoint: async data => {
       await mkdir(dirname(checkpointPath), { recursive: true });
       await writeFile(checkpointPath, JSON.stringify(data), { mode: 0o600 });
     },
     onProgress: progress => {
-      console.log(`${progress.modelSwitched ? `Switching to ${progress.modelSwitched} after the primary model's quota response. ` : ''}Gemini batch ${progress.batch}/${progress.batches}, attempt ${progress.attempt}: ${progress.accepted}/${progress.total} accepted${progress.remainingInBatch ? `; repairing ${progress.remainingInBatch}` : ''}.`);
+      console.log(`${progress.modelSwitched ? `Switching to ${progress.modelSwitched} after the primary model's ${progress.modelSwitchReason === 'provider-unavailable' ? 'unavailable' : 'quota'} response. ` : ''}Gemini batch ${progress.batch}/${progress.batches}, attempt ${progress.attempt}: ${progress.accepted}/${progress.total} accepted${progress.remainingInBatch ? `; repairing ${progress.remainingInBatch}` : ''}.`);
       if (progress.validationErrors?.length) console.log(`Validation: ${progress.validationErrors.join('; ')}`.replaceAll(apiKey, '[REDACTED]'));
     },
   });

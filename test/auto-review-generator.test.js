@@ -186,6 +186,29 @@ test('assigned category and article agreement survive singular and plural wordin
   assert.throws(() => validateGeminiDrafts([singular], bad), /assigned generic/);
 });
 
+test('English browsing refers to plural items while a singular item is checked or chosen', () => {
+  const contexts=buildReviewContexts({research});
+  const singular=contexts.find(c=>c.language==='en'&&c.categoryPhrase==='ladies watch');
+  const one=makeManifest([singular]);one.entries[0].text=one.entries[0].text.replace('to buy a','to browse a');
+  assert.throws(()=>validateGeminiDrafts([singular],one),/singular-item wording/);
+  one.entries[0].text=one.entries[0].text.replace('to browse a','to check a');
+  assert.equal(validateGeminiDrafts([singular],one).length,1);
+  const plural=contexts.find(c=>c.language==='en'&&c.categoryPhrase==='ladies watches');
+  const many=makeManifest([plural]);many.entries[0].text=many.entries[0].text.replace('to buy','to browse');
+  assert.equal(validateGeminiDrafts([plural],many).length,1);
+});
+
+test('Hindi arrival agrees with its speaker and Gujarati arrival is not repeated as a gerund', () => {
+  const hi=firstContext('hi');const h=makeManifest([hi]);
+  h.entries[0].text=h.entries[0].text.replace('aaya tha','pahunche');
+  assert.throws(()=>validateGeminiDrafts([hi],h),/singular main/);
+  h.entries[0].text=h.entries[0].text.replace('Main','Hum');
+  assert.equal(validateGeminiDrafts([hi],h).length,1);
+  const gu=firstContext('gu');const g=makeManifest([gu]);
+  g.entries[0].text=g.entries[0].text.replace(`${gu.business}, ${gu.city}`,`${gu.business}, ${gu.city} aavine`);
+  assert.throws(()=>validateGeminiDrafts([gu],g),/repeat arrival/);
+});
+
 test('generated grammar keeps shopper origin, recipient and buying purpose attached correctly', () => {
   const en = firstContext();
   const manifest = makeManifest([en]);

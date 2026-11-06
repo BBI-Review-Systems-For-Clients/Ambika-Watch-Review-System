@@ -144,3 +144,13 @@ test('quota failure in both models stops without a model-switch loop',async()=>{
  }}),error=>error.status===429);
  assert.equal(attempts,2);
 });
+
+test('primary unavailability on the last attempt uses one bounded fallback with honest provenance',async()=>{
+ let calls=0;const progress=[];
+ const manifest=await generateGeminiManifest({contexts,apiKey:key,model,maxAttempts:1,onProgress:value=>progress.push(value),request:async({contexts:input,model:requested})=>{
+  calls++;if(requested===model)throw new GeminiRequestError('HTTP','Provider unavailable',503);return response(input);
+ }});
+ assert.equal(calls,2);
+ assert.equal(progress.find(x=>x.modelSwitched)?.modelSwitchReason,'provider-unavailable');
+ assert.deepEqual(manifest.modelsUsed,['gemini-3.1-flash-lite']);
+});
